@@ -1,0 +1,28 @@
+# Local secrets
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+.venv/
+venv/
+
+# Runtime data
+data/
+drafts/
+logs/
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+
+# IDE and OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

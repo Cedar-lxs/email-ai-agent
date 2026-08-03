@@ -1,0 +1,92 @@
+# 阿里企业邮箱 AI Agent 配置
+# ⚠️ 敏感信息建议用环境变量，不要直接写在这里
+
+mail:
+  # 阿里企业邮箱 IMAP/SMTP 服务器
+  imap_server: "imap.qiye.aliyun.com"
+  imap_port: 993
+  smtp_server: "smtp.qiye.aliyun.com"
+  smtp_port: 465
+
+  # 邮箱账号（建议用环境变量 MAIL_ACCOUNT）
+  account: "your-account@example.com"
+  # 客户端专用密码（建议用环境变量 MAIL_PASSWORD）
+  # ⚠️ 不是登录密码！在阿里邮箱设置里生成"客户端专用密码"
+  password: ""
+
+  # 轮询间隔（秒）
+  poll_interval: 300  # 5分钟
+
+ai:
+  # 支持的 provider: openai / claude / deepseek
+  provider: "deepseek"
+  api_key: ""     # 必须通过环境变量 AI_API_KEY 提供
+  api_base: "https://api.deepseek.com"
+  model: "deepseek-v4-pro"
+  company: "Technical Support"
+  company_info: "Technical Support，仅提供产品参数、安装配置、使用指导和故障排查支持"
+  reply_max_tokens: 2400
+  reasoning_retry_tokens: 2400
+
+  # 生成参数
+  temperature: 0.7
+  max_tokens: 2000
+
+rag:
+  # hybrid = BM25/型号精确召回 + DashScope 向量召回 + RRF 融合
+  mode: "hybrid"
+  top_k: 5
+  chunk_size: 900
+  chunk_overlap: 120
+  lexical_candidates: 25
+  vector_candidates: 25
+  fusion_k: 60
+  min_confidence: 0.75
+  index_path: "./data/vector_store/index.sqlite"
+  embedding:
+    provider: "openai_compatible"
+    api_base: "https://dashscope.aliyuncs.com/compatible-mode/v1"
+    model: "text-embedding-v4"
+    dimensions: 1024
+    batch_size: 10
+    timeout: 60
+    retries: 3
+  reranker:
+    # Cross-Encoder 模型当前无法下载；保持关闭，避免退回词项重排后改变置信度
+    enabled: false
+    model: "BAAI/bge-reranker-base"
+
+workflow:
+  # 运行模式: semi_auto(半自动,生成草稿等审核) / full_auto(全自动)
+  mode: "semi_auto"
+
+  # 半自动模式：生成草稿存哪里
+  draft_dir: "./drafts"
+
+  # 即使未来启用全自动，也仅允许低风险技术问题
+  auto_reply_types:
+    - "技术参数咨询"
+    - "安装配置"
+    - "使用指导"
+    - "故障排查"
+    - "网络连接"
+    - "软件固件"
+    - "兼容性问题"
+    - "其他技术问题"
+
+  # 所有业务问题和高风险问题转人工
+  always_human_types:
+    - "业务问题"
+
+database:
+  path: "./data/emails.db"
+
+logging:
+  # 日志存储目录
+  dir: "./logs"
+  # 日志级别: DEBUG / INFO / WARNING / ERROR / CRITICAL
+  level: "INFO"
+
+processing:
+  # 邮件并发处理数量
+  max_concurrent: 3

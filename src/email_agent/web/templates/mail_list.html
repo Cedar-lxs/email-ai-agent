@@ -1,0 +1,38 @@
+{% extends 'base.html' %}
+{% block title %}邮件审核 · Technical Support{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><span class="eyebrow">MAIL OPERATIONS</span><h1>邮件审核中心</h1><p>{{'全自动发送已启用' if mode=='full_auto' else 'AI 生成草稿，由人工确认后发送'}}</p></div>
+  <span class="health"><i></i>服务运行正常</span>
+</div>
+<div class="stats">
+  <div class="stat accent"><span>待审核</span><strong>{{counts.get('draft_ready',0)}}</strong><small>需要人工确认</small></div>
+  <div class="stat"><span>转人工</span><strong>{{counts.get('escalated',0)}}</strong><small>证据不足或高风险</small></div>
+  <div class="stat"><span>已发送</span><strong>{{counts.get('replied',0)}}</strong><small>处理完成</small></div>
+  <div class="stat"><span>累计处理</span><strong>{{total}}</strong><small>全部邮件记录</small></div>
+</div>
+<section class="panel">
+  <form class="toolbar searchbar" method="get">
+    <input type="hidden" name="status" value="{{status}}">
+    <div class="search-input"><span>⌕</span><input name="q" value="{{query}}" placeholder="搜索主题、发件人、意图或正文"></div>
+    <button class="btn">搜索</button>
+    {% if query %}<a class="btn ghost" href="{{url_for('mail.index',status=status)}}">清除</a>{% endif %}
+  </form>
+  <form method="post" action="{{url_for('mail.delete')}}" onsubmit="return confirm('确认永久删除选中的无效邮件及草稿？')">
+    <input type="hidden" name="csrf" value="{{csrf}}">
+    <div class="list-head"><label><input type="checkbox" onclick="for(const x of document.getElementsByClassName('check'))x.checked=this.checked"> 全选</label><span>邮件</span><span>分类</span><span>接收时间</span><button class="text-danger">删除选中</button></div>
+    <div class="mail-list">
+      {% for row in rows %}
+      <div class="mail-row">
+        <input class="check" type="checkbox" name="message_ids" value="{{row.message_id}}" aria-label="选择邮件">
+        <a class="avatar" href="{{url_for('mail.detail',message_id=row.message_id)}}">{{(row.sender or '?')[0]|upper}}</a>
+        <a class="mail-summary" href="{{url_for('mail.detail',message_id=row.message_id)}}"><b>{{row.subject or '（无主题）'}}</b><span>{{row.sender}}</span><small>{{(row.original_body or '暂无正文')[:100]}}</small></a>
+        <span class="tag">{{row.intent or '未分类'}}</span>
+        <time>{{row.received_at}}</time>
+        <a class="open-link" href="{{url_for('mail.detail',message_id=row.message_id)}}" aria-label="查看邮件">→</a>
+      </div>
+      {% else %}<div class="empty"><div>✓</div><b>当前没有符合条件的邮件</b><span>新邮件到达后会显示在这里</span></div>{% endfor %}
+    </div>
+  </form>
+</section>
+{% endblock %}
