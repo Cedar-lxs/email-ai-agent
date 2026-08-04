@@ -17,13 +17,13 @@ def login():
     data = request.get_json(silent=True) or {}
     username = data.get("username", "").strip()
     password = data.get("password", "")
-    
+
     if not username or not password:
         return jsonify({"error": "用户名和密码不能为空"}), 400
-    
+
     if not AuthManager.verify_password(username, password):
         return jsonify({"error": "用户名或密码错误"}), 401
-    
+
     token = AuthManager.generate_token(username)
     return jsonify({
         "token": token,
@@ -63,7 +63,7 @@ def get_mails():
     """获取邮件列表"""
     from flask import current_app
     agent = current_app.extensions["services"].agent
-    
+
     status = request.args.get("status", "draft_ready")
     query = request.args.get("q", "").strip()
     try:
@@ -71,18 +71,18 @@ def get_mails():
         page_size = min(100, max(1, int(request.args.get("page_size", 20))))
     except (TypeError, ValueError):
         return jsonify({"error": "分页参数必须是整数"}), 400
-    
+
     if status not in {"draft_ready", "replied", "escalated", "rejected", "failed", "pending", "skipped_self", "all"}:
         status = "draft_ready"
-    
+
     all_mails = agent.db.get_emails(status, query)
     total = len(all_mails)
-    
+
     # 分页
     start = (page - 1) * page_size
     end = start + page_size
     mails = [dict(row) for row in all_mails[start:end]]
-    
+
     return jsonify({
         "mails": mails,
         "total": total,
@@ -98,15 +98,15 @@ def get_mail_detail(message_id):
     from flask import current_app
     agent = current_app.extensions["services"].agent
     review = current_app.extensions["services"].review
-    
+
     mail = agent.db.get_email(message_id)
     if not mail:
         return jsonify({"error": "邮件不存在"}), 404
-    
+
     draft_body = review.draft_body(mail)
     retrieval = agent.db.parse_retrieval_trace(mail)
     reply_subject = agent.sender.build_reply_subject(mail["subject"])
-    
+
     return jsonify({
         "mail": dict(mail),
         "draft_body": draft_body,
@@ -121,13 +121,13 @@ def save_draft(message_id):
     """保存草稿"""
     from flask import current_app
     review = current_app.extensions["services"].review
-    
+
     data = request.get_json(silent=True) or {}
     body = data.get("body", "")
-    
+
     if not body.strip():
         return jsonify({"error": "回复内容不能为空"}), 400
-    
+
     try:
         review.edit(message_id, body)
         return jsonify({"message": "草稿已保存"})
@@ -141,7 +141,7 @@ def approve_mail(message_id):
     """批准并发送"""
     from flask import current_app
     review = current_app.extensions["services"].review
-    
+
     try:
         review.approve(message_id)
         return jsonify({"message": "邮件已发送"})
@@ -155,13 +155,13 @@ def reject_mail(message_id):
     """拒绝草稿"""
     from flask import current_app
     review = current_app.extensions["services"].review
-    
+
     data = request.get_json(silent=True) or {}
     reason = data.get("reason", "").strip()
-    
+
     if not reason:
         return jsonify({"error": "请填写拒绝原因"}), 400
-    
+
     try:
         review.reject(message_id, reason)
         return jsonify({"message": "草稿已拒绝"})
@@ -175,13 +175,13 @@ def delete_mails():
     """删除邮件"""
     from flask import current_app
     review = current_app.extensions["services"].review
-    
+
     data = request.get_json(silent=True) or {}
     message_ids = data.get("message_ids", [])
-    
+
     if not message_ids:
         return jsonify({"error": "未选择邮件"}), 400
-    
+
     try:
         deleted = review.delete(message_ids)
         return jsonify({
@@ -197,8 +197,17 @@ def delete_mails():
 def get_knowledge():
     """获取知识文件和索引状态。"""
     service = current_app.extensions["services"].knowledge
-    files = [{"name": path.name, "suffix": path.suffix.upper().lstrip("."),
-              "size": path.stat().st_size, "editable": service.is_editable_article(path)} for path in service.list_files()]
+    files = [
+    {
+        "name": service.relative_name(path),
+        "filename": path.name,
+        "directory": path.relative_to(service.knowledge_dir).parent.as_posix() or "root",
+        "suffix": path.suffix.upper().lstrip("."),
+        "size": path.stat().st_size,
+        "editable": service.is_editable_article(path),
+    }
+    for path in service.list_files()
+   ]
     try:
         stats = service.retriever.get_stats()
     except Exception as exc:
@@ -322,6 +331,13 @@ def _public_settings(agent):
                 "min_confidence": rag.get("min_confidence"),
                 "embedding_model": rag.get("embedding", {}).get("model", "")},
         "auto_reply_types": workflow.get("auto_reply_types", []),
+        "web_search": {
+            "enabled": bool(config.get("web_search", {}).get("enabled", False)),
+            "provider": config.get("web_search", {}).get("provider", ""),
+            "api_key_env": config.get("web_search", {}).get("api_key_env", "BOCHA_API_KEY"),
+            "auto_send_low_risk": bool(config.get("web_search", {}).get("auto_send_low_risk", False)),
+            "allowed_intents": config.get("web_search", {}).get("allowed_intents", []),
+        },
         "config_file": Path("config.yaml").as_posix(),
     }
 
@@ -380,11 +396,38 @@ def get_stats():
     """获取统计信息"""
     from flask import current_app
     agent = current_app.extensions["services"].agent
-    
+
     counts = agent.db.get_status_counts()
     mode = agent.db.get_setting("workflow_mode", agent.config["workflow"]["mode"])
-    
+
     return jsonify({
         "counts": counts,
         "mode": mode
     })
+
+@bp.get("/customers/<path:sender_email>/history")
+@token_required
+def get_customer_history(sender_email):
+    """Return a customer ticket history summary."""
+    try:
+        limit = min(100, max(1, int(request.args.get("limit", 20))))
+    except (TypeError, ValueError):
+        return jsonify({"error": "limit must be an integer"}), 400
+    sender_email = sender_email.strip()
+    if not sender_email:
+        return jsonify({"error": "Customer email is required"}), 400
+    rows = current_app.extensions["services"].agent.db.get_customer_history(
+        sender_email, limit
+    )
+    return jsonify({
+        "customer": sender_email,
+        "tickets": [dict(row) for row in rows],
+        "total": len(rows),
+    })
+
+
+@bp.get("/tickets/stats/today")
+@token_required
+def get_today_ticket_stats():
+    """Return local-date ticket status and intent counts."""
+    return jsonify(current_app.extensions["services"].agent.db.get_today_ticket_stats())

@@ -25,8 +25,10 @@ class KnowledgeBase:
 
     def _load(self):
         self.entries, self.chunks, self.load_errors, self._seen_hashes = [], [], [], set()
-        for path in sorted(self.knowledge_dir.iterdir()):
+        for path in sorted(self.knowledge_dir.rglob("*")):
             if not path.is_file() or path.suffix.lower() not in self.SUPPORTED_SUFFIXES:
+                continue
+            if path.name in {"glossary.json", "products.json"} and path.with_suffix(".vector.json").is_file():
                 continue
             try:
                 getattr(self, f"_load_{path.suffix.lower()[1:]}")(path)
@@ -37,14 +39,24 @@ class KnowledgeBase:
 
     def _load_json(self, path: Path):
         data = json.loads(path.read_text(encoding="utf-8-sig"))
+        if isinstance(data, dict):
+            data = data.get("entries")
         if not isinstance(data, list):
-            raise ValueError("JSON 顶层必须是数组")
+            raise ValueError("JSON 顶层必须是数组，或包含 entries 数组")
         for index, item in enumerate(data, 1):
-            if isinstance(item, dict) and str(item.get("answer", "")).strip():
-                self._add_chunks(
-                    str(item.get("question", path.stem)), str(item["answer"]), path,
-                    f"第 {index} 条", list(item.get("keywords", [])), {"kind": "qa"},
-                )
+            if not isinstance(item, dict) or not str(item.get("answer", "")).strip():
+                continue
+            keywords = item.get("keywords", [])
+            if not isinstance(keywords, list):
+                keywords = [keywords]
+            metadata = item.get("metadata", {})
+            if not isinstance(metadata, dict):
+                metadata = {}
+            self._add_chunks(
+                str(item.get("question", path.stem)), str(item["answer"]), path,
+                str(item.get("section", f"第 {index} 条")), keywords,
+                {"kind": "qa", **metadata},
+            )
 
     def _load_txt(self, path: Path):
         self._add_chunks(path.stem, path.read_text(encoding="utf-8-sig"), path, path.stem)
@@ -132,7 +144,7 @@ class KnowledgeBase:
         identifiers = tuple(self._identifiers(f"{question} {answer}"))
         values = list(keywords or []) + list(identifiers)
         values = list(dict.fromkeys(str(value).strip() for value in values if str(value).strip()))
-        source = path.name
+        source = path.relative_to(self.knowledge_dir).as_posix()
         stable = f"{source}\x1f{section}\x1f{content_hash}"
         chunk_id = hashlib.sha256(stable.encode("utf-8")).hexdigest()[:32]
         info = {"path": str(path), "mtime_ns": path.stat().st_mtime_ns,

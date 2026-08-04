@@ -173,6 +173,45 @@ class EmailDB:
             ORDER BY created_at DESC LIMIT ?
         """, (sender_email, limit)).fetchall()
 
+    def get_customer_history(self, sender_email: str, limit: int = 20):
+        """返回指定客户的历史工单摘要，最新工单在前。"""
+        return self.conn.execute("""
+            SELECT message_id, subject, sender, received_at, intent, sentiment, status,
+                   replied_at, notes, original_body, in_reply_to, last_error, retry_count
+            FROM processed_emails
+            WHERE lower(sender) = lower(?)
+            ORDER BY received_at DESC, rowid DESC
+            LIMIT ?
+        """, (sender_email.strip(), limit)).fetchall()
+
+    def get_today_ticket_stats(self):
+        """按本地日期汇总今日接收的工单。"""
+        today = datetime.now().date().isoformat()
+        rows = self.conn.execute("""
+            SELECT status, intent, COUNT(*) AS count
+            FROM processed_emails
+            WHERE substr(received_at, 1, 10) = ?
+            GROUP BY status, intent
+        """, (today,)).fetchall()
+        status_counts = {}
+        intent_counts = {}
+        total = 0
+        for row in rows:
+            count = row["count"]
+            total += count
+            status_counts[row["status"] or "unknown"] = (
+                status_counts.get(row["status"] or "unknown", 0) + count
+            )
+            intent_counts[row["intent"] or "unclassified"] = (
+                intent_counts.get(row["intent"] or "unclassified", 0) + count
+            )
+        return {
+            "date": today,
+            "total": total,
+            "status_counts": status_counts,
+            "intent_counts": intent_counts,
+        }
+
     def get_setting(self, key: str, default: str = "") -> str:
         row = self.conn.execute("SELECT value FROM app_settings WHERE key=?", (key,)).fetchone()
         return row["value"] if row else default

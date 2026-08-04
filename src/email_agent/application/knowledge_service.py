@@ -34,10 +34,22 @@ class KnowledgeService:
 
     def list_files(self):
         return sorted(
-            [path for path in self.knowledge_dir.iterdir()
+            [path for path in self.knowledge_dir.rglob("*")
              if path.is_file() and path.suffix.lower() in KnowledgeBase.SUPPORTED_SUFFIXES],
-            key=lambda path: path.name.lower(),
+            key=lambda path: path.relative_to(self.knowledge_dir).as_posix().casefold(),
         )
+
+    def relative_name(self, path: Path) -> str:
+        return path.relative_to(self.knowledge_dir).as_posix()
+
+    def resolve_knowledge_path(self, relative_name: str) -> Path:
+        relative = Path(str(relative_name or ""))
+        if relative.is_absolute() or ".." in relative.parts or not relative.parts:
+            raise ValueError("Invalid knowledge file path")
+        path = (self.knowledge_dir / relative).resolve()
+        if self.knowledge_dir.resolve() not in path.parents:
+            raise ValueError("Invalid knowledge file path")
+        return path
 
     @staticmethod
     def safe_name(filename: str) -> str:
@@ -275,11 +287,12 @@ class KnowledgeService:
 
     def delete(self, names: list[str]) -> int:
         deleted = 0
-        root = self.knowledge_dir.resolve()
         for name in names:
-            path = self.knowledge_dir / Path(name).name
-            if (path.is_file() and path.parent.resolve() == root
-                    and path.suffix.lower() in KnowledgeBase.SUPPORTED_SUFFIXES):
+            try:
+                path = self.resolve_knowledge_path(name)
+            except ValueError:
+                continue
+            if path.is_file() and path.suffix.lower() in KnowledgeBase.SUPPORTED_SUFFIXES:
                 path.unlink()
                 deleted += 1
         self.retriever.rebuild()

@@ -41,12 +41,12 @@ rag:
   lexical_candidates: 25
   vector_candidates: 25
   fusion_k: 60
-  min_confidence: 0.75
+  min_confidence: 0.65
   index_path: "./data/vector_store/index.sqlite"
   embedding:
     provider: "openai_compatible"
     api_base: "https://dashscope.aliyuncs.com/compatible-mode/v1"
-    model: "text-embedding-v4"
+    model: "qwen3.7-text-embedding"
     dimensions: 1024
     batch_size: 10
     timeout: 60
@@ -55,6 +55,23 @@ rag:
     # Cross-Encoder 模型当前无法下载；保持关闭，避免退回词项重排后改变置信度
     enabled: false
     model: "BAAI/bge-reranker-base"
+
+web_search:
+  # 本地知识证据不足时，使用博查为低风险通用技术问题补充参考。
+  enabled: true
+  provider: "bocha"
+  api_key_env: "BOCHA_API_KEY"
+  api_base: "https://api.bochaai.com"
+  timeout: 15
+  max_results: 3
+  retries: 1
+  auto_send_low_risk: true
+  allowed_intents:
+    - "安装配置"
+    - "使用指导"
+    - "故障排查"
+    - "网络连接"
+    - "其他技术问题"
 
 workflow:
   # 运行模式: semi_auto(半自动,生成草稿等审核) / full_auto(全自动)

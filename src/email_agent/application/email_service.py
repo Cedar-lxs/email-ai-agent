@@ -1,5 +1,6 @@
 """邮件 Agent：收件、技术分类、知识检索、草稿审核与发送。"""
 import asyncio
+import re
 import subprocess
 import sys
 import time
@@ -13,6 +14,7 @@ from email_agent.infrastructure.knowledge.factory import create_retriever
 from email_agent.infrastructure.llm import AIProcessor
 from email_agent.infrastructure.mail_fetcher import MailFetcher
 from email_agent.infrastructure.mail_sender import MailSender
+from email_agent.infrastructure.web_search import BochaWebSearchClient
 from email_agent.paths import get_project_paths, resolve_from_root
 from email_agent.application.review_service import ReviewService
 from email_agent.logger import setup_logger, get_logger
@@ -28,7 +30,7 @@ class EmailAgent:
     def __init__(self, config_path: str = None):
         self.config = load_config(config_path)
         paths = get_project_paths()
-        
+
         # 设置日志
         log_dir = self.config.get("logging", {}).get("dir", str(paths.root / "logs"))
         log_level = self.config.get("logging", {}).get("level", "INFO")
@@ -36,7 +38,7 @@ class EmailAgent:
         self.logger = get_logger("email_agent")
         self.logger.info("=" * 60)
         self.logger.info("EmailAgent 初始化开始")
-        
+
         db_path = resolve_from_root(self.config["database"]["path"], paths.root)
         draft_path = resolve_from_root(self.config["workflow"]["draft_dir"], paths.root)
         self.db = EmailDB(str(db_path))
@@ -54,7 +56,9 @@ class EmailAgent:
         )
         self.draft_dir = str(draft_path)
         self.review = ReviewService(self.db, self.sender, draft_path)
-        
+        self.web_search = BochaWebSearchClient(self.config.get("web_search", {}))
+        self.web_search_config = self.config.get("web_search", {})
+
         # 并发处理配置
         self.max_concurrent = int(self.config.get("processing", {}).get("max_concurrent", 3))
         self.logger.info(f"EmailAgent 初始化完成: mode={self.mode}, max_concurrent={self.max_concurrent}")
@@ -98,11 +102,11 @@ class EmailAgent:
             return []
         finally:
             await fetcher.disconnect_async()
-    
+
     async def _process_emails_concurrently(self, emails):
         """并发处理多封邮件"""
         semaphore = asyncio.Semaphore(self.max_concurrent)
-        
+
         async def process_with_limit(email, index, total):
             async with semaphore:
                 _safe_print(f"\n[{index}/{total}] {email.subject[:60]} | {email.sender}")
@@ -116,8 +120,8 @@ class EmailAgent:
                     _safe_print(f"处理失败，将保留未读以便重试: {exc}")
                     self.logger.error(f"邮件 {email.message_id} 处理异常: {exc}", exc_info=True)
                     return False
-        
-        tasks = [process_with_limit(email, i+1, len(emails)) 
+
+        tasks = [process_with_limit(email, i+1, len(emails))
                  for i, email in enumerate(emails)]
         return await asyncio.gather(*tasks, return_exceptions=False)
 
@@ -138,13 +142,14 @@ class EmailAgent:
 
         # 异步意图分析
         intent = await self._retry_async(
-            lambda: self.ai.analyze_intent_async(email.subject, email.body_text), 
+            lambda: self.ai.analyze_intent_async(email.subject, email.body_text),
             "AI 意图分析"
         )
+        intent = self._normalize_intent(intent, f"{email.subject}\n{email.body_text}")
         _safe_print(f"意图: {intent.intent} | 情绪: {intent.sentiment} | 紧急: {intent.urgency}")
         self.logger.info(f"意图分析完成: intent={intent.intent}, sentiment={intent.sentiment}, "
                         f"urgency={intent.urgency}, needs_human={intent.needs_human}")
-        
+
         self.db.mark_processed(
             email.message_id, email.subject, email.sender, intent.intent, intent.sentiment,
             "pending", email.body_text, email.in_reply_to,
@@ -154,7 +159,7 @@ class EmailAgent:
             f"[{email.subject}]\n{email.body_text[:2000]}",
         )
 
-        if self._needs_human(intent):
+        if self._needs_human(intent, f"{email.subject}\n{email.body_text}"):
             self.db.update_status(email.message_id, "escalated", notes="业务或高风险问题")
             _safe_print("已转人工处理")
             self.logger.info(f"邮件 {email.message_id} 已转人工: 业务或高风险问题")
@@ -189,7 +194,7 @@ class EmailAgent:
         evidence_threshold = float(self.config.get("rag", {}).get("min_confidence", 0.75))
         hits = [hit for hit in hits if hit.score >= evidence_threshold]
         self.logger.info(f"知识检索完成: 找到 {len(hits)} 条符合阈值的知识")
-        
+
         self.db.save_retrieval_trace(
             email.message_id, getattr(self.retriever, "last_trace", {
                 "mode": "lexical", "query": retrieval_query.combined_text,
@@ -198,20 +203,27 @@ class EmailAgent:
             })
         )
         knowledge = KnowledgeContextFormatter.format(hits)
-        if not hits:
+        used_web_search = False
+        if not hits and self._can_use_web_search(intent, retrieval_query):
+            web_context, web_trace = await self._search_web_context_async(retrieval_query)
+            if web_context:
+                knowledge = web_context
+                used_web_search = True
+                self.db.save_retrieval_trace(email.message_id, web_trace)
+        if not knowledge:
             self.db.update_status(
                 email.message_id, "escalated",
-                notes=f"没有置信度达到 {evidence_threshold:.0%} 的直接知识依据，已转人工"
+                notes=f"没有置信度达到 {evidence_threshold:.0%} 的直接知识依据，且无可用通用参考，已转人工"
             )
-            _safe_print(f"没有置信度达到 {evidence_threshold:.0%} 的知识依据，已转人工处理")
+            _safe_print("没有足够知识依据或通用参考，已转人工处理")
             self.logger.info(f"邮件 {email.message_id} 无足够知识依据，已转人工")
             return True
-        
+
         history = "\n".join(
             f"[{row['role']}]: {row['content'][:500]}"
             for row in reversed(self.db.get_history_for_sender(email.sender, 3))
         )
-        
+
         # 异步生成回复
         try:
             reply = await self._retry_async(
@@ -228,14 +240,22 @@ class EmailAgent:
             return True
 
         allowed = intent.intent in self.config["workflow"]["auto_reply_types"]
-        if self.mode == "full_auto" and allowed:
+        can_auto_send = allowed and (
+            (used_web_search and bool(self.web_search_config.get("auto_send_low_risk", False)))
+            or (not used_web_search and self.mode == "full_auto")
+        )
+        if can_auto_send:
             sent = await asyncio.to_thread(
                 self.sender.send_reply,
                 email.sender, email.subject, reply, email.message_id,
             )
             if not sent:
                 raise RuntimeError("SMTP 自动回复失败")
-            self.db.update_status(email.message_id, "replied", reply)
+            self.db.update_status(
+                email.message_id, "replied", reply,
+                notes="使用博查行业通用参考自动发送"
+                if used_web_search else ""
+            )
             self.db.save_conversation(email.sender, email.message_id, "agent", reply)
             _safe_print(f"自动回复已发送，主题: {self.sender.build_reply_subject(email.subject)}")
             self.logger.info(f"邮件 {email.message_id} 自动回复已发送")
@@ -245,12 +265,15 @@ class EmailAgent:
             email.sender, email.subject, reply, self.draft_dir,
             message_id=email.message_id,
         )
-        self.db.update_status(email.message_id, "draft_ready", reply, path)
+        self.db.update_status(
+            email.message_id, "draft_ready", reply, path,
+            notes="使用博查行业通用参考生成草稿" if used_web_search else ""
+        )
         self.db.save_conversation(email.sender, email.message_id, "agent", reply)
         _safe_print(f"待审核草稿已保存: {path}")
         self.logger.info(f"邮件 {email.message_id} 草稿已生成: {path}")
         return True
-    
+
     def _process_email(self, email) -> bool:
         """同步处理单封邮件（保留向后兼容）"""
         self.logger.info(f"开始同步处理邮件: {email.message_id}")
@@ -270,9 +293,10 @@ class EmailAgent:
         intent = self._retry(
             lambda: self.ai.analyze_intent(email.subject, email.body_text), "AI 意图分析"
         )
+        intent = self._normalize_intent(intent, f"{email.subject}\n{email.body_text}")
         _safe_print(f"意图: {intent.intent} | 情绪: {intent.sentiment} | 紧急: {intent.urgency}")
         self.logger.info(f"意图分析完成: intent={intent.intent}, sentiment={intent.sentiment}")
-        
+
         self.db.mark_processed(
             email.message_id, email.subject, email.sender, intent.intent, intent.sentiment,
             "pending", email.body_text, email.in_reply_to,
@@ -282,7 +306,7 @@ class EmailAgent:
             f"[{email.subject}]\n{email.body_text[:2000]}",
         )
 
-        if self._needs_human(intent):
+        if self._needs_human(intent, f"{email.subject}\n{email.body_text}"):
             self.db.update_status(email.message_id, "escalated", notes="业务或高风险问题")
             _safe_print("已转人工处理")
             self.logger.info(f"邮件 {email.message_id} 已转人工")
@@ -316,7 +340,7 @@ class EmailAgent:
         evidence_threshold = float(self.config.get("rag", {}).get("min_confidence", 0.75))
         hits = [hit for hit in hits if hit.score >= evidence_threshold]
         self.logger.info(f"知识检索完成: 找到 {len(hits)} 条符合阈值的知识")
-        
+
         self.db.save_retrieval_trace(
             email.message_id, getattr(self.retriever, "last_trace", {
                 "mode": "lexical", "query": retrieval_query.combined_text,
@@ -325,12 +349,19 @@ class EmailAgent:
             })
         )
         knowledge = KnowledgeContextFormatter.format(hits)
-        if not hits:
+        used_web_search = False
+        if not hits and self._can_use_web_search(intent, retrieval_query):
+            web_context, web_trace = self._search_web_context(retrieval_query)
+            if web_context:
+                knowledge = web_context
+                used_web_search = True
+                self.db.save_retrieval_trace(email.message_id, web_trace)
+        if not knowledge:
             self.db.update_status(
                 email.message_id, "escalated",
-                notes=f"没有置信度达到 {evidence_threshold:.0%} 的直接知识依据，已转人工"
+                notes=f"没有置信度达到 {evidence_threshold:.0%} 的直接知识依据，且无可用通用参考，已转人工"
             )
-            _safe_print(f"没有置信度达到 {evidence_threshold:.0%} 的知识依据，已转人工处理")
+            _safe_print("没有足够知识依据或通用参考，已转人工处理")
             self.logger.info(f"邮件 {email.message_id} 无足够知识依据，已转人工")
             return True
         history = "\n".join(
@@ -352,12 +383,20 @@ class EmailAgent:
             return True
 
         allowed = intent.intent in self.config["workflow"]["auto_reply_types"]
-        if self.mode == "full_auto" and allowed:
+        can_auto_send = allowed and (
+            (used_web_search and bool(self.web_search_config.get("auto_send_low_risk", False)))
+            or (not used_web_search and self.mode == "full_auto")
+        )
+        if can_auto_send:
             if not self.sender.send_reply(
                 email.sender, email.subject, reply, email.message_id
             ):
                 raise RuntimeError("SMTP 自动回复失败")
-            self.db.update_status(email.message_id, "replied", reply)
+            self.db.update_status(
+                email.message_id, "replied", reply,
+                notes="使用博查行业通用参考自动发送"
+                if used_web_search else ""
+            )
             self.db.save_conversation(email.sender, email.message_id, "agent", reply)
             _safe_print(f"自动回复已发送，主题: {self.sender.build_reply_subject(email.subject)}")
             self.logger.info(f"邮件 {email.message_id} 自动回复已发送")
@@ -367,7 +406,10 @@ class EmailAgent:
             email.sender, email.subject, reply, self.draft_dir,
             message_id=email.message_id,
         )
-        self.db.update_status(email.message_id, "draft_ready", reply, path)
+        self.db.update_status(
+            email.message_id, "draft_ready", reply, path,
+            notes="使用博查行业通用参考生成草稿" if used_web_search else ""
+        )
         self.db.save_conversation(email.sender, email.message_id, "agent", reply)
         _safe_print(f"待审核草稿已保存: {path}")
         self.logger.info(f"邮件 {email.message_id} 草稿已生成: {path}")
@@ -397,7 +439,7 @@ class EmailAgent:
                     time.sleep(delay)
         logger.error(f"{name}连续失败: {last_error}")
         raise RuntimeError(f"{name}连续失败: {last_error}") from last_error
-    
+
     @staticmethod
     async def _retry_async(operation, name: str, attempts: int = 3):
         """异步重试装饰器"""
@@ -416,12 +458,116 @@ class EmailAgent:
         logger.error(f"{name}连续失败: {last_error}")
         raise RuntimeError(f"{name}连续失败: {last_error}") from last_error
 
-    def _needs_human(self, intent) -> bool:
-        return (
-            intent.intent in self.config["workflow"]["always_human_types"]
-            or intent.needs_human
-            or intent.sentiment == "angry"
+    @staticmethod
+    def _web_search_query(query: RetrievalQuery) -> str:
+        text = f"{query.subject} {query.text}".strip()
+        text = re.sub(r"\b[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}\b", "", text)
+        text = re.sub(r"\b(?:order|订单)\s*[:#-]?\s*[A-Za-z0-9-]{4,}\b", "", text, flags=re.I)
+        text = re.sub(r"\b(?:\+?\d[\d\s-]{7,}\d)\b", "", text)
+        return re.sub(r"\s+", " ", text).strip()[:800]
+
+    def _search_web_context(self, query: RetrievalQuery) -> tuple[str, dict]:
+        search_query = self._web_search_query(query)
+        try:
+            results = self.web_search.search(search_query)
+        except Exception as exc:
+            self.logger.warning(f"博查 Web Search 失败: {exc}")
+            return "", {"mode": "web_search_fallback", "query": search_query,
+                        "degraded_reason": f"Web Search 失败: {exc}", "hits": []}
+        if not results:
+            return "", {"mode": "web_search_fallback", "query": search_query,
+                        "degraded_reason": "Web Search 未返回可用参考", "hits": []}
+        references = []
+        hits = []
+        for index, result in enumerate(results, 1):
+            references.append(
+                f"[External general reference {index} | {result.title} | {result.url}]\n{result.snippet}"
+            )
+            hits.append({"source": result.url, "section": result.title, "score": 0,
+                         "external": True})
+        return "\n\n---\n\n".join(references), {
+            "mode": "web_search_fallback", "query": search_query,
+            "degraded_reason": "本地知识不足，使用博查通用技术参考", "hits": hits,
+        }
+
+    def _can_use_web_search(self, intent, query: RetrievalQuery) -> bool:
+        if (not self.web_search.available or intent.sentiment == "angry"
+                or intent.urgency == "high"):
+            return False
+        if intent.intent not in set(self.web_search_config.get("allowed_intents", [])):
+            return False
+        if query.identifiers:
+            return False
+        unsafe_terms = (
+            "firmware", "upgrade", "reset", "factory", "power", "poe", "voltage",
+            "disassembly", "warranty", "refund", "order", "delete", "erase", "safety",
+            "价格", "固件", "升级", "恢复出厂", "供电", "拆机", "保修", "退款",
+            "订单", "电压", "删除", "清除", "安全", "数据丢失", "数据恢复", "电气",
         )
+        return not any(term in query.combined_text.lower() for term in unsafe_terms)
+
+    async def _search_web_context_async(self, query: RetrievalQuery) -> tuple[str, dict]:
+        search_query = self._web_search_query(query)
+        try:
+            results = await asyncio.to_thread(self.web_search.search, search_query)
+        except Exception as exc:
+            self.logger.warning(f"博查 Web Search 失败: {exc}")
+            return "", {"mode": "web_search_fallback", "query": search_query,
+                        "degraded_reason": f"Web Search 失败: {exc}", "hits": []}
+        if not results:
+            return "", {"mode": "web_search_fallback", "query": search_query,
+                        "degraded_reason": "Web Search 未返回可用参考", "hits": []}
+        references = []
+        hits = []
+        for index, result in enumerate(results, 1):
+            references.append(
+                f"[External general reference {index} | {result.title} | {result.url}]\n{result.snippet}"
+            )
+            hits.append({"source": result.url, "section": result.title, "score": 0,
+                         "external": True})
+        return "\n\n---\n\n".join(references), {
+            "mode": "web_search_fallback", "query": search_query,
+            "degraded_reason": "本地知识不足，使用博查通用技术参考", "hits": hits,
+        }
+
+    def _normalize_intent(self, intent, message_text: str):
+        if intent.intent != "其他" or self._contains_business_term(message_text):
+            return intent
+        low_risk_intents = set(self.web_search_config.get("allowed_intents", []))
+        if "其他技术问题" not in low_risk_intents or self._contains_high_risk_operation(message_text):
+            return intent
+        intent.intent = "其他技术问题"
+        return intent
+
+    @staticmethod
+    def _contains_business_term(text: str) -> bool:
+        normalized = text.lower()
+        terms = (
+            "order", "quote", "price", "invoice", "shipping", "refund", "return",
+            "warranty", "complaint", "purchase", "payment", "订单", "报价", "价格",
+            "发票", "物流", "退款", "退货", "保修", "投诉", "采购", "付款",
+        )
+        return any(term in normalized for term in terms)
+
+    def _needs_human(self, intent, message_text: str = "") -> bool:
+        if intent.intent in self.config["workflow"]["always_human_types"]:
+            return True
+        if intent.sentiment == "angry" or intent.urgency == "high":
+            return True
+        low_risk_intents = set(self.web_search_config.get("allowed_intents", []))
+        if intent.intent in low_risk_intents and not self._contains_high_risk_operation(message_text):
+            return False
+        return intent.needs_human
+
+    @staticmethod
+    def _contains_high_risk_operation(text: str) -> bool:
+        normalized = text.lower()
+        terms = (
+            "firmware", "upgrade", "reset", "factory", "power", "poe", "voltage",
+            "disassembly", "delete", "erase", "safety", "固件", "升级", "恢复出厂",
+            "供电", "拆机", "电压", "删除", "清除", "安全", "数据丢失", "电气",
+        )
+        return any(term in normalized for term in terms)
 
     def list_drafts(self):
         rows = self.db.get_pending_drafts()

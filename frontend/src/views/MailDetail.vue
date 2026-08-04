@@ -6,7 +6,7 @@
         返回列表
       </el-button>
     </div>
-    
+
     <div v-if="mail" class="detail-content">
       <el-card class="info-card">
         <div class="mail-header">
@@ -24,7 +24,7 @@
           </el-tag>
         </div>
       </el-card>
-      
+
       <!-- 并排对比视图 -->
       <el-row :gutter="20" class="comparison-row">
         <el-col :xs="24" :lg="12">
@@ -39,7 +39,7 @@
             <div class="mail-body readonly">{{ mail.original_body || '（无正文）' }}</div>
           </el-card>
         </el-col>
-        
+
         <el-col :xs="24" :lg="12">
           <el-card class="comparison-card">
             <template #header>
@@ -49,7 +49,7 @@
                 <small>{{ replySubject }}</small>
               </div>
             </template>
-            
+
             <el-input
               v-if="mail.status === 'draft_ready'"
               v-model="draftBody"
@@ -59,7 +59,7 @@
               class="draft-editor"
             />
             <div v-else class="mail-body readonly">{{ draftBody || '（无回复内容）' }}</div>
-            
+
             <div v-if="mail.status === 'draft_ready'" class="editor-actions">
               <el-button @click="handleSave" :loading="saving">
                 <el-icon><DocumentChecked /></el-icon>
@@ -69,7 +69,7 @@
           </el-card>
         </el-col>
       </el-row>
-      
+
       <!-- 知识依据和操作 -->
       <el-row :gutter="20" class="action-row">
         <el-col :xs="24" :lg="16">
@@ -78,10 +78,10 @@
               <div class="card-header">
                 <span class="section-index">03</span>
                 <h3>知识依据</h3>
-                <small>仅使用置信度 ≥ 75% 的内容</small>
+                <small>{{ retrieval.mode === 'web_search_fallback' ? '本地知识不足时采用的外部通用参考' : '本地知识置信度阈值 ≥ 65%' }}</small>
               </div>
             </template>
-            
+
             <el-alert
               v-if="retrieval.degraded_reason"
               :title="retrieval.degraded_reason"
@@ -89,28 +89,29 @@
               :closable="false"
               style="margin-bottom: 16px"
             />
-            
+
             <div v-if="retrieval.hits && retrieval.hits.length > 0" class="evidence-list">
               <div v-for="(hit, index) in retrieval.hits" :key="index" class="evidence-item">
                 <div class="evidence-header">
                   <div>
-                    <strong>{{ hit.source }}</strong>
-                    <small>{{ hit.section }}</small>
+                    <strong>{{ hit.section || hit.source }}</strong>
+                    <a v-if="hit.external" class="evidence-link" :href="hit.source" target="_blank" rel="noopener noreferrer">{{ hit.source }}</a>
+                    <small v-else>{{ hit.source }}</small>
                   </div>
-                  <el-tag type="success">{{ Math.round((hit.score || 0) * 100) }}%</el-tag>
+                  <el-tag :type="hit.external ? 'warning' : 'success'">{{ hit.external ? '外部通用参考' : `${Math.round((hit.score || 0) * 100)}%` }}</el-tag>
                 </div>
-                <el-progress
+                <el-progress v-if="!hit.external"
                   :percentage="Math.round((hit.score || 0) * 100)"
                   :show-text="false"
                   :stroke-width="6"
                 />
               </div>
             </div>
-            
+
             <el-empty v-else description="暂无合格知识依据" />
           </el-card>
         </el-col>
-        
+
         <el-col :xs="24" :lg="8" v-if="mail.status === 'draft_ready'">
           <el-card class="action-card">
             <template #header>
@@ -119,7 +120,7 @@
                 <h3>审核操作</h3>
               </div>
             </template>
-            
+
             <el-space direction="vertical" :size="12" style="width: 100%">
               <el-button
                 type="primary"
@@ -131,16 +132,16 @@
                 <el-icon><Select /></el-icon>
                 确认并发送
               </el-button>
-              
+
               <el-divider />
-              
+
               <el-input
                 v-model="rejectReason"
                 placeholder="填写拒绝原因"
                 type="textarea"
                 :rows="3"
               />
-              
+
               <el-button
                 type="danger"
                 :loading="rejecting"
@@ -151,9 +152,9 @@
                 <el-icon><Close /></el-icon>
                 拒绝
               </el-button>
-              
+
               <el-divider />
-              
+
               <el-popconfirm
                 title="确认永久删除此邮件及草稿？"
                 @confirm="handleDelete"
@@ -288,7 +289,7 @@ const handleApprove = async () => {
         type: 'warning'
       }
     )
-    
+
     approving.value = true
     await mailApi.approve(mail.value.message_id)
     ElMessage.success('邮件已成功发送')
@@ -307,7 +308,7 @@ const handleReject = async () => {
     ElMessage.warning('请填写拒绝原因')
     return
   }
-  
+
   rejecting.value = true
   try {
     await mailApi.reject(mail.value.message_id, rejectReason.value)

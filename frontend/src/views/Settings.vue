@@ -43,6 +43,8 @@
           <el-descriptions-item label="Top K">{{ settings.rag?.top_k ?? '—' }}</el-descriptions-item>
           <el-descriptions-item label="置信度阈值">{{ settings.rag?.min_confidence ?? '—' }}</el-descriptions-item>
           <el-descriptions-item label="Embedding">{{ settings.rag?.embedding_model || '未配置' }}</el-descriptions-item>
+          <el-descriptions-item label="Web Search">{{ settings.web_search?.enabled ? `${settings.web_search.provider || '已启用'}${settings.web_search.auto_send_low_risk ? ' · 低风险可自动发送' : ' · 仅生成草稿'}` : '未启用' }}</el-descriptions-item>
+          <el-descriptions-item v-if="settings.web_search?.enabled" label="允许场景">{{ (settings.web_search.allowed_intents || []).join('、') || '—' }}</el-descriptions-item>
         </el-descriptions>
       </el-card>
     </div>
@@ -60,7 +62,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { CircleCheck, Connection, Cpu, Message, Switch } from '@element-plus/icons-vue'
 import { settingsApi } from '@/api/settings'
 
-const settings = ref({ mode: 'semi_auto', mail: {}, ai: {}, rag: {}, auto_reply_types: [] })
+const settings = ref({ mode: 'semi_auto', mail: {}, ai: {}, rag: {}, web_search: {}, auto_reply_types: [] })
 const loading = ref(false)
 const savingMode = ref(false)
 const testingMail = ref(false)
