@@ -9,6 +9,20 @@ from email.utils import formataddr
 from datetime import datetime
 
 
+def normalize_customer_terms(text: str) -> str:
+    """将仅适用于国内版的管理端术语转换为海外客户用语。"""
+    normalized = str(text or "")
+    patterns = (
+        r"微信小程序\s*[\"'“‘]?云网管[\"'”’]?",
+        r"微信\s*[\"'“‘]?云网管[\"'”’]?\s*小程序",
+        r"微信小程序",
+        r"WeChat\s+(?:Mini[\s-]+Program|Mini[\s-]+App|applet)",
+    )
+    for pattern in patterns:
+        normalized = re.sub(pattern, "Amitres APP", normalized, flags=re.IGNORECASE)
+    return normalized
+
+
 class MailSender:
     """阿里企业邮箱 SMTP 客户端"""
 
@@ -35,6 +49,7 @@ class MailSender:
         返回: 成功 True / 失败 False
         """
         reply_subject = self.build_reply_subject(subject)
+        body = normalize_customer_terms(body)
 
         if format_type == "html":
             msg = MIMEMultipart("alternative")
@@ -77,6 +92,7 @@ class MailSender:
             target = Path(draft_dir) / f"{timestamp}_{safe_address}.txt"
 
         reply_subject = self.build_reply_subject(subject)
+        body = normalize_customer_terms(body)
         content = f"""Message-ID: {message_id}
 收件人: {to_address}
 主题: {reply_subject}

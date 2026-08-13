@@ -20,7 +20,8 @@ def main(args=None) -> int:
         elif command == "review" and len(args) == 2: agent.review_draft(args[1])
         elif command == "edit" and len(args) == 3: agent.edit_draft(args[1], args[2])
         elif command == "approve" and len(args) == 2: agent.approve_draft(args[1])
-        elif command == "reject" and len(args) >= 2: agent.reject_draft(args[1], " ".join(args[2:]) or "人工拒绝")
+        elif command == "reject" and len(args) >= 2:
+            agent.reject_draft(args[1], " ".join(args[2:]) or "人工拒绝")
         elif command == "stats": agent.show_stats()
         elif command == "install-task": agent.install_task()
         elif command == "remove-task": agent.remove_task()
@@ -38,10 +39,10 @@ def main(args=None) -> int:
         elif command == "rag-eval":
             evaluator = RetrievalEvaluator(agent.retriever)
             path = get_project_paths().data / "rag_evaluation.jsonl"
-            cases = (evaluator.load_cases(path) if path.is_file()
-                     else evaluator.save_cases(path, 100))
+            cases = evaluator.save_cases(path, 100)
             print(json.dumps(evaluator.evaluate(cases), ensure_ascii=False, indent=2))
-        else: usage()
+        else:
+            usage()
         return 0
     except Exception as exc:
         print(f"操作失败: {exc}")

@@ -1,5 +1,6 @@
 """RAG 索引构建、检索调试与离线质量评测。"""
 import json
+import re
 from pathlib import Path
 
 from email_agent.domain.models import RetrievalQuery
@@ -11,17 +12,33 @@ class RetrievalEvaluator:
 
     def generate_cases(self, limit: int = 100) -> list[dict]:
         cases = []
+        seen = set()
         for entry in self.retriever.entries:
-            identifiers = entry["metadata"].get("identifiers", [])
-            title = entry["question"].strip("# ")
-            if not title or len(title) < 3:
+            query = self._evaluation_query(entry)
+            if not query or query in seen:
                 continue
-            query = f"{title} {' '.join(identifiers[:2])}".strip()
+            seen.add(query)
             cases.append({"query": query, "expected_chunk_id": entry["chunk_id"],
                           "expected_source": entry["source"], "section": entry["section"]})
             if len(cases) >= limit:
                 break
         return cases
+
+    @staticmethod
+    def _evaluation_query(entry: dict) -> str:
+        title = entry["question"].strip("# ").strip()
+        if len(title) >= 3 and not RetrievalEvaluator._is_generic_title(title):
+            return title
+        content = re.sub(r"[`*_#>|]", " ", entry.get("answer", ""))
+        content = re.sub(r"\s+", " ", content).strip()
+        return content[:180] if len(content) >= 20 else ""
+
+    @staticmethod
+    def _is_generic_title(title: str) -> bool:
+        lowered = title.lower()
+        markers = ("faq", "sheet", "v2.0", "v1.0", ".docx", ".xlsx", ".pdf",
+                   "d:\\", "文件存储路径", "更新计划", "知识包")
+        return any(marker in lowered for marker in markers) or len(title) > 100
 
     def save_cases(self, path, limit: int = 100) -> list[dict]:
         cases = self.generate_cases(limit)

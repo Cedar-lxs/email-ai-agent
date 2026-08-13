@@ -67,7 +67,8 @@ class EmailAgent:
     def _fetcher(self):
         mail = self.config["mail"]
         return MailFetcher(mail["imap_server"], mail["imap_port"],
-                           mail["account"], mail["password"])
+                           mail["account"], mail["password"],
+                           timeout=mail.get("imap_timeout", 30))
 
     def run_once(self):
         """同步兼容入口；实际轮询与处理运行在同一个事件循环中。"""
@@ -240,10 +241,7 @@ class EmailAgent:
             return True
 
         allowed = intent.intent in self.config["workflow"]["auto_reply_types"]
-        can_auto_send = allowed and (
-            (used_web_search and bool(self.web_search_config.get("auto_send_low_risk", False)))
-            or (not used_web_search and self.mode == "full_auto")
-        )
+        can_auto_send = self._can_auto_send(allowed, used_web_search)
         if can_auto_send:
             sent = await asyncio.to_thread(
                 self.sender.send_reply,
@@ -383,10 +381,7 @@ class EmailAgent:
             return True
 
         allowed = intent.intent in self.config["workflow"]["auto_reply_types"]
-        can_auto_send = allowed and (
-            (used_web_search and bool(self.web_search_config.get("auto_send_low_risk", False)))
-            or (not used_web_search and self.mode == "full_auto")
-        )
+        can_auto_send = self._can_auto_send(allowed, used_web_search)
         if can_auto_send:
             if not self.sender.send_reply(
                 email.sender, email.subject, reply, email.message_id
@@ -529,6 +524,13 @@ class EmailAgent:
             "mode": "web_search_fallback", "query": search_query,
             "degraded_reason": "本地知识不足，使用博查通用技术参考", "hits": hits,
         }
+
+    def _can_auto_send(self, allowed: bool, used_web_search: bool) -> bool:
+        if not allowed or self.mode != "full_auto":
+            return False
+        return not used_web_search or bool(
+            self.web_search_config.get("auto_send_low_risk", False)
+        )
 
     def _normalize_intent(self, intent, message_text: str):
         if intent.intent != "其他" or self._contains_business_term(message_text):

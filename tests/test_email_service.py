@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import AsyncMock, Mock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
@@ -140,6 +140,29 @@ class KnowledgeServiceTests(unittest.TestCase):
 
 
 class AsyncEmailServiceTests(unittest.IsolatedAsyncioTestCase):
+    def test_mail_fetcher_connect_uses_configured_timeout(self):
+        connection = Mock()
+        with patch("email_agent.infrastructure.mail_fetcher.imaplib.IMAP4_SSL",
+                   return_value=connection) as imap:
+            fetcher = MailFetcher(
+                "imap.example.com", 993, "agent@example.com", "secret", timeout=12
+            )
+            fetcher.connect()
+        imap.assert_called_once_with("imap.example.com", 993, timeout=12.0)
+        connection.login.assert_called_once_with("agent@example.com", "secret")
+
+    def test_semi_auto_never_sends_directly(self):
+        agent = EmailAgent.__new__(EmailAgent)
+        agent.mode = "semi_auto"
+        agent.web_search_config = {"auto_send_low_risk": True}
+        self.assertFalse(agent._can_auto_send(True, False))
+        self.assertFalse(agent._can_auto_send(True, True))
+        agent.mode = "full_auto"
+        self.assertTrue(agent._can_auto_send(True, False))
+        self.assertTrue(agent._can_auto_send(True, True))
+        agent.web_search_config["auto_send_low_risk"] = False
+        self.assertFalse(agent._can_auto_send(True, True))
+
     async def test_mail_fetcher_async_methods_delegate_blocking_imap_calls(self):
         fetcher = MailFetcher("imap.example.com", 993, "agent@example.com", "secret")
         fetcher.connect = Mock()

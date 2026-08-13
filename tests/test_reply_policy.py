@@ -10,9 +10,73 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from email_agent.domain.models import IntentResult, RetrievalQuery
 from email_agent.infrastructure.knowledge.hybrid import HybridKnowledgeRetriever
 from email_agent.infrastructure.llm import AIProcessor
+from email_agent.infrastructure.mail_sender import MailSender, normalize_customer_terms
 
 
 class ReplyPolicyTests(unittest.TestCase):
+    def test_overseas_app_terms_are_normalized(self):
+        variants = (
+            'Please use the WeChat Mini Program "Cloud Management".',
+            "Open the WeChat mini-program to add the device.",
+            "请使用微信小程序‘云网管’添加设备。",
+        )
+        for text in variants:
+            normalized = normalize_customer_terms(text)
+            self.assertIn("Amitres APP", normalized)
+            self.assertNotRegex(normalized, r"(?i)wechat|微信|小程序")
+
+    def test_generated_reply_uses_amitres_app(self):
+        processor = AIProcessor({})
+        intent = IntentResult("使用指导", "neutral", "low", "绑定设备", [], False, "en")
+        generated = "Please add the device in the WeChat Mini Program.\n\nTechnical Support"
+        with patch.object(processor, "_call_llm", return_value=generated):
+            reply = processor.generate_reply("Add device", "How do I add it?", intent, "依据")
+        self.assertIn("Amitres APP", reply)
+        self.assertNotIn("WeChat", reply)
+
+    def test_saved_draft_uses_amitres_app(self):
+        with tempfile.TemporaryDirectory() as root:
+            sender = MailSender("smtp.example.com", 465, "agent@example.com", "secret")
+            path = sender.save_draft(
+                "user@example.com", "Add device", "Use the WeChat Mini App.", root
+            )
+            self.assertIn("Amitres APP", Path(path).read_text(encoding="utf-8"))
+
+    def test_smtp_send_uses_amitres_app(self):
+        sender = MailSender("smtp.example.com", 465, "agent@example.com", "secret")
+        with patch("email_agent.infrastructure.mail_sender.smtplib.SMTP_SSL") as smtp_class:
+            smtp = smtp_class.return_value.__enter__.return_value
+            self.assertTrue(sender.send_reply(
+                "user@example.com", "Add device", "Use the WeChat Mini Program."
+            ))
+        message = smtp.send_message.call_args.args[0]
+        body = message.get_payload(decode=True).decode(message.get_content_charset())
+        self.assertIn("Amitres APP", body)
+        self.assertNotIn("WeChat", body)
+
+    def test_json_repair_handles_common_format_errors_without_retry(self):
+        processor = AIProcessor({})
+        payload = processor._load_json_with_retry(
+            "```json\n{'intent': '故障排查', 'needs_human': false,}\n```",
+            "意图识别", 300
+        )
+        self.assertEqual(payload["intent"], "故障排查")
+        self.assertFalse(payload["needs_human"])
+
+    def test_json_repair_retries_once_when_local_repair_fails(self):
+        processor = AIProcessor({})
+        with patch.object(processor, "_call_llm", return_value='{"intent":"网络连接"}') as call:
+            payload = processor._load_json_with_retry("not json", "意图识别", 300)
+        self.assertEqual(payload, {"intent": "网络连接"})
+        call.assert_called_once()
+
+    def test_json_repair_failure_is_safe(self):
+        processor = AIProcessor({})
+        with patch.object(processor, "_call_llm", return_value="still not json") as call:
+            with self.assertRaisesRegex(ValueError, "JSON格式无效"):
+                processor._load_json_with_retry("not json", "意图识别", 300)
+        call.assert_called_once()
+
     def test_empty_first_reply_is_retried(self):
         processor = AIProcessor({})
         intent = IntentResult("故障排查", "neutral", "low", "设备离线", [], False, "en")

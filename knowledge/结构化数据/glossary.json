@@ -1,0 +1,94 @@
+{
+  "_meta": {
+    "description": "技术售后常用术语中英对照表",
+    "usage": "LLM 生成英文回复时参考，保持术语一致"
+  },
+
+  "network": [
+    { "en": "port", "zh": "端口", "context": "交换机物理接口" },
+    { "en": "uplink port", "zh": "上联口", "context": "连接上层网络的端口" },
+    { "en": "switching capacity", "zh": "交换容量", "unit": "Gbps", "context": "交换机总数据吞吐能力" },
+    { "en": "backplane bandwidth", "zh": "背板带宽", "unit": "Gbps", "context": "所有端口间最大数据吞吐量" },
+    { "en": "forwarding rate", "zh": "包转发率", "unit": "Mpps", "context": "每秒转发数据包数量" },
+    { "en": "MAC address table", "zh": "MAC地址表", "context": "交换机学习到的MAC地址数量上限" },
+    { "en": "VLAN", "zh": "虚拟局域网", "context": "逻辑隔离广播域的虚拟网络技术" },
+    { "en": "jumbo frame", "zh": "巨型帧", "unit": "bytes", "context": "超过标准MTU的数据帧，通常9000字节" },
+    { "en": "store and forward", "zh": "存储转发", "context": "交换机完整接收数据帧后再转发的模式" },
+    { "en": "flow control", "zh": "流量控制", "context": "防止网络拥塞的机制，通常基于802.3x标准" },
+    { "en": "link aggregation", "zh": "链路聚合", "context": "将多个物理端口捆绑为一个逻辑链路" },
+    { "en": "spanning tree", "zh": "生成树协议", "context": "防止二层网络环路的协议(STP/RSTP/MSTP)" },
+    { "en": "cloud management", "zh": "云管理", "context": "通过云平台远程管理和监控交换机" },
+    { "en": "desktop switch", "zh": "桌面交换机", "context": "小型桌面式交换机，通常无风扇" },
+    { "en": "web management", "zh": "WEB管理", "context": "通过浏览器界面管理交换机" },
+    { "en": "firmware", "zh": "固件", "context": "嵌入在交换机硬件中的底层软件" }
+  ],
+
+  "poe": [
+    { "en": "PoE", "zh": "以太网供电", "full": "Power over Ethernet", "context": "通过网线同时传输数据和电力" },
+    { "en": "PoE budget", "zh": "PoE总功率预算", "unit": "W", "context": "所有PoE端口能同时提供的最大总功率" },
+    { "en": "PoE port", "zh": "PoE供电端口", "context": "支持对外供电的以太网端口" },
+    { "en": "802.3af", "zh": "PoE标准", "note": "单端口最大15.4W", "context": "IEEE标准PoE协议" },
+    { "en": "802.3at", "zh": "PoE+标准", "note": "单端口最大30W", "context": "IEEE增强PoE协议，又称PoE Plus" },
+    { "en": "802.3bt", "zh": "PoE++标准", "note": "单端口最大60W(Type3)/90W(Type4)", "context": "IEEE高功率PoE协议" },
+    { "en": "passive PoE", "zh": "被动PoE", "context": "非标准的固定电压供电方式，不经过802.3协商" },
+    { "en": "surge protection", "zh": "防浪涌/防雷", "context": "保护设备免受电压浪涌或雷电损害" }
+  ],
+
+  "speed": [
+    { "en": "Fast Ethernet", "zh": "百兆以太网", "speed": "100Mbps", "context": "100Mbps以太网标准" },
+    { "en": "Gigabit Ethernet", "zh": "千兆以太网", "speed": "1000Mbps", "context": "1Gbps以太网标准" },
+    { "en": "2.5G Ethernet", "zh": "2.5G以太网", "speed": "2500Mbps", "context": "NBASE-T标准，在Cat5e线上实现2.5G" },
+    { "en": "10-Gigabit", "zh": "万兆", "speed": "10000Mbps", "context": "10Gbps以太网" },
+    { "en": "negotiation", "zh": "协商", "context": "设备间自动确定最佳连接速率和双工模式" },
+    { "en": "auto-negotiation", "zh": "自动协商", "context": "802.3标准，端口自动匹配对端速率" },
+    { "en": "duplex", "zh": "双工模式", "context": "full-duplex全双工/half-duplex半双工" },
+    { "en": "cable test", "zh": "线缆检测", "context": "检测网线质量和故障位置的功能" }
+  ],
+
+  "camera": [
+    { "en": "IP camera", "zh": "网络摄像机", "context": "通过IP网络传输视频的摄像机" },
+    { "en": "PTZ", "zh": "云台控制", "full": "Pan-Tilt-Zoom", "context": "水平/垂直旋转+变焦功能" },
+    { "en": "AOV", "zh": "常亮全彩", "full": "Always On Video", "context": "24小时全彩录像，不切换红外模式" },
+    { "en": "night vision", "zh": "夜视", "context": "夜间成像能力，红外或全彩" },
+    { "en": "IR cut filter", "zh": "红外滤光片", "context": "白天过滤红外光、夜晚通过红外光的切换装置" },
+    { "en": "motion detection", "zh": "移动侦测", "context": "检测画面内物体移动并触发报警或录像" },
+    { "en": "two-way audio", "zh": "双向语音", "context": "摄像机与APP之间双向语音通话" },
+    { "en": "PIR sensor", "zh": "人体红外感应", "context": "被动红外传感器，检测人体移动" },
+    { "en": "dual lens", "zh": "双目", "context": "双镜头设计，通常用于全景或变焦" },
+    { "en": "ONVIF", "zh": "ONVIF协议", "context": "开放的网络视频接口标准，用于跨品牌兼容" }
+  ],
+
+  "product_line": [
+    { "en": "cloud managed switch", "zh": "云管理交换机", "context": "GPS/GS/PS系列" },
+    { "en": "unmanaged switch", "zh": "非管理交换机", "context": "POE/GPOE经典系列" },
+    { "en": "industrial switch", "zh": "工业交换机", "context": "I105等工业环境交换机" },
+    { "en": "PoE injector", "zh": "PoE供电器", "context": "单端口PoE供电适配器" },
+    { "en": "PoE splitter", "zh": "PoE分离器/分线器", "context": "将PoE供电分离为数据+电源" },
+    { "en": "SFP", "zh": "SFP光模块", "full": "Small Form-factor Pluggable", "context": "可插拔光模块接口" }
+  ],
+
+  "troubleshoot": [
+    { "en": "RMA", "zh": "退换货授权", "full": "Return Merchandise Authorization", "context": "产品退回维修或更换的授权流程" },
+    { "en": "DOA", "zh": "开箱即损", "full": "Dead on Arrival", "context": "到货时产品已损坏" },
+    { "en": "factory reset", "zh": "恢复出厂设置", "context": "将设备所有配置恢复到出厂状态" },
+    { "en": "firmware upgrade", "zh": "固件升级", "context": "更新设备固件到新版本" },
+    { "en": "LED indicator", "zh": "指示灯", "context": "设备前面板的状态指示灯" },
+    { "en": "loop", "zh": "环路", "context": "网络环路导致广播风暴" },
+    { "en": "packet loss", "zh": "丢包", "context": "数据包在传输过程中丢失" },
+    { "en": "latency", "zh": "延迟", "context": "数据从发送到接收的时间差" },
+    { "en": "overheat", "zh": "过热", "context": "设备温度超过正常工作范围" },
+    { "en": "grounding", "zh": "接地", "context": "设备的电气接地保护" },
+    { "en": "ESD", "zh": "静电放电", "full": "Electrostatic Discharge", "context": "静电对电子元件的潜在损害" },
+    { "en": "warranty", "zh": "保修", "context": "产品的保修期限和范围" },
+    { "en": "troubleshooting", "zh": "故障排查", "context": "系统性地诊断和解决问题的过程" }
+  ],
+
+  "power_supply": [
+    { "en": "external power adapter", "zh": "外置电源适配器", "context": "独立于设备的电源适配器" },
+    { "en": "built-in power supply", "zh": "内置电源", "context": "集成在设备内部的电源模块" },
+    { "en": "DC input", "zh": "直流输入", "context": "直流电源输入接口" },
+    { "en": "AC input", "zh": "交流输入", "context": "交流电源输入接口" },
+    { "en": "power consumption", "zh": "功耗", "unit": "W", "context": "设备的电力消耗" },
+    { "en": "redundant power", "zh": "冗余电源", "context": "双电源备份设计，一台故障时另一台接管" }
+  ]
+}

@@ -1,0 +1,2099 @@
+{
+  "schema_version": 1,
+  "entries": [
+    {
+      "question": "产品参数：GPS105S",
+      "answer": "产品型号: GPS105S\n产品类型: switch\n分类: 云网管系列\nseries: 云网管POE\nports: 5\npoe_ports: 4\nspeed: 全千兆\nmanagement: 云管理\nnote: 全千兆POE中继器",
+      "section": "产品 > switch > 云网管系列 > GPS105S",
+      "keywords": [
+        "GPS105S",
+        "",
+        "switch",
+        "云网管系列",
+        "",
+        "GPS105S",
+        "云网管POE",
+        "5",
+        "4",
+        "全千兆",
+        "云管理",
+        "",
+        "",
+        "",
+        "全千兆POE中继器"
+      ],
+      "metadata": {
+        "kind": "product",
+        "product_type": "switch",
+        "category": "云网管系列",
+        "family": "",
+        "model": "GPS105S"
+      }
+    },
+    {
+      "question": "产品参数：GPS208",
+      "answer": "产品型号: GPS208\n产品类型: switch\n分类: 云网管系列\nseries: 云网管POE\nports: 8\npoe_ports: 8\nspeed: 全千兆\nmanagement: 云管理\nnote: 全千兆8口POE云管理交换机",
+      "section": "产品 > switch > 云网管系列 > GPS208",
+      "keywords": [
+        "GPS208",
+        "",
+        "switch",
+        "云网管系列",
+        "",
+        "GPS208",
+        "云网管POE",
+        "8",
+        "8",
+        "全千兆",
+        "云管理",
+        "",
+        "",
+        "",
+        "全千兆8口POE云管理交换机"
+      ],
+      "metadata": {
+        "kind": "product",
+        "product_type": "switch",
+        "category": "云网管系列",
+        "family": "",
+        "model": "GPS208"
+      }
+    },
+    {
+      "question": "产品参数：GPS316",
+      "answer": "产品型号: GPS316\n产品类型: switch\n分类: 云网管系列\nseries: 云网管POE\nports: 16\npoe_ports: 16\nspeed: 全千兆\nmanagement: 云管理\nnote: 全千兆16口POE云管理交换机",
+      "section": "产品 > switch > 云网管系列 > GPS316",
+      "keywords": [
+        "GPS316",
+        "",
+        "switch",
+        "云网管系列",
+        "",
+        "GPS316",
+        "云网管POE",
+        "16",
+        "16",
+        "全千兆",
+        "云管理",
+        "",
+        "",
+        "",
+        "全千兆16口POE云管理交换机"
+      ],
+      "metadata": {
+        "kind": "product",
+        "product_type": "switch",
+        "category": "云网管系列",
+        "family": "",
+        "model": "GPS316"
+      }
+    },
+    {
+      "question": "产品参数：GPS424",
+      "answer": "产品型号: GPS424\n产品类型: switch\n分类: 云网管系列\nseries: 云网管POE\nports: 24\npoe_ports: 24\nspeed: 全千兆\nmanagement: 云管理\nnote: 全千兆24口POE云管理交换机",
+      "section": "产品 > switch > 云网管系列 > GPS424",
+      "keywords": [
+        "GPS424",
+        "",
+        "switch",
+        "云网管系列",
+        "",
+        "GPS424",
+        "云网管POE",
+        "24",
+        "24",
+        "全千兆",
+        "云管理",
+        "",
+        "",
+        "",
+        "全千兆24口POE云管理交换机"
+      ],
+      "metadata": {
+        "kind": "product",
+        "product_type": "switch",
+        "category": "云网管系列",
+        "family": "",
+        "model": "GPS424"
+      }
+    },
+    {
+      "question": "产品参数：GS105",
+      "answer": "产品型号: GS105\n产品类型: switch\n分类: 云网管系列\nseries: 云网管非POE\nports: 5\npoe_ports: 0\nspeed: 全千兆\nmanagement: 云管理\npoe_budget_w: 0\nnote: 全千兆5非POE云管理交换机",
+      "section": "产品 > switch > 云网管系列 > GS105",
+      "keywords": [
+        "GS105",
+        "",
+        "switch",
+        "云网管系列",
+        "",
+        "GS105",
+        "云网管非POE",
+        "5",
+        "0",
+        "全千兆",
+        "云管理",
+        "",
+        "0",
+        "",
+        "全千兆5非POE云管理交换机"
+      ],
+      "metadata": {
+        "kind": "product",
+        "product_type": "switch",
+        "category": "云网管系列",
+        "family": "",
+        "model": "GS105"
+      }
+    },
+    {
+      "question": "产品参数：GS108",
+      "answer": "产品型号: GS108\n产品类型: switch\n分类: 云网管系列\nseries: 云网管非POE\nports: 8\npoe_ports: 0\nspeed: 全千兆\nmanagement: 云管理\npoe_budget_w: 0\nnote: 全千兆8非POE云管理交换机",
+      "section": "产品 > switch > 云网管系列 > GS108",
+      "keywords": [
+        "GS108",
+        "",
+        "switch",
+        "云网管系列",
+        "",
+        "GS108",
+        "云网管非POE",
+        "8",
+        "0",
+        "全千兆",
+        "云管理",
+        "",
+        "0",
+        "",
+        "全千兆8非POE云管理交换机"
+      ],
+      "metadata": {
+        "kind": "product",
+        "product_type": "switch",
+        "category": "云网管系列",
+        "family": "",
+        "model": "GS108"
+      }
+    },
+    {
+      "question": "产品参数：GS116",
+      "answer": "产品型号: GS116\n产品类型: switch\n分类: 云网管系列\nseries: 云网管非POE\nports: 16\npoe_ports: 0\nspeed: 全千兆\nmanagement: 云管理\npoe_budget_w: 0\nnote: 全千兆16非POE云管理交换机",
+      "section": "产品 > switch > 云网管系列 > GS116",
+      "keywords": [
+        "GS116",
+        "",
+        "switch",
+        "云网管系列",
+        "",
+        "GS116",
+        "云网管非POE",
+        "16",
+        "0",
+        "全千兆",
+        "云管理",
+        "",
+        "0",
+        "",
+        "全千兆16非POE云管理交换机"
+      ],
+      "metadata": {
+        "kind": "product",
+        "product_type": "switch",
+        "category": "云网管系列",
+        "family": "",
+        "model": "GS116"
+      }
+    },
+    {
+      "question": "产品参数：GFS124",
+      "answer": "产品型号: GFS124\n产品类型: switch\n分类: 云网管系列\nseries: 云网管非POE\nports: 24\npoe_ports: 0\nspeed: 全千兆\nmanagement: 云管理\npoe_budget_w: 0\nnote: 全千兆24非POE云管理交换机",
+      "section": "产品 > switch > 云网管系列 > GFS124",
+      "keywords": [
+        "GFS124",
+        "",
+        "switch",
+        "云网管系列",
+        "",
+        "GFS124",
+        "云网管非POE",
+        "24",
+        "0",
+        "全千兆",
+        "云管理",
+        "",
+        "0",
+        "",
+        "全千兆24非POE云管理交换机"
+      ],
+      "metadata": {
+        "kind": "product",
+        "product_type": "switch",
+        "category": "云网管系列",
+        "family": "",
+        "model": "GFS124"
+      }
+    },
+    {
+      "question": "产品参数：GFS226",
+      "answer": "产品型号: GFS226\n产品类型: switch\n分类: 云网管系列\nseries: 云网管非POE\nports: 24\npoe_ports: 0\nspeed: 全千兆\nmanagement: 云管理\npoe_budget_w: 0\nnote: 全千兆24非POE云管理交换机",
+      "section": "产品 > switch > 云网管系列 > GFS226",
+      "keywords": [
+        "GFS226",
+        "",
+        "switch",
+        "云网管系列",
+        "",
+        "GFS226",
+        "云网管非POE",
+        "24",
+        "0",
+        "全千兆",
+        "云管理",
+        "",
+        "0",
+        "",
+        "全千兆24非POE云管理交换机"
+      ],
+      "metadata": {
+        "kind": "product",
+        "product_type": "switch",
+        "category": "云网管系列",
+        "family": "",
+        "model": "GFS226"
+      }
+    },
+    {
+      "question": "产品参数：PS104G",
+      "answer": "产品型号: PS104G\n产品类型: switch\n分类: 云网管系列\nseries: 云网管POE\nports: 5\npoe_ports: 4\nspeed: 百+千\nmanagement: 云管理\nnote: 1口上联千兆+2口千兆POE端口+2口百兆POE端口",
+      "section": "产品 > switch > 云网管系列 > PS104G",
+      "keywords": [
+        "PS104G",
+        "",
+        "switch",
+        "云网管系列",
+        "",
+        "PS104G",
+        "云网管POE",
+        "5",
+        "4",
+        "百+千",
+        "云管理",
+        "",
+        "",
+        "",
+        "1口上联千兆+2口千兆POE端口+2口百兆POE端口"
+      ],
+      "metadata": {
+        "kind": "product",
+        "product_type": "switch",
+        "category": "云网管系列",
+        "family": "",
+        "model": "PS104G"
+      }
+    },
+    {
+      "question": "产品参数：PS110G",
+      "answer": "产品型号: PS110G\n产品类型: switch\n分类: 云网管系列\nseries: 云网管POE\nports: 10\npoe_ports: 8\nspeed: 百+千\nmanagement: 云管理\nnote: 2口上联千兆+8口千兆POE端口",
+      "section": "产品 > switch > 云网管系列 > PS110G",
+      "keywords": [
+        "PS110G",
+        "",
+        "switch",
+        "云网管系列",
+        "",
+        "PS110G",
+        "云网管POE",
+        "10",
+        "8",
+        "百+千",
+        "云管理",
+        "",
+        "",
+        "",
+        "2口上联千兆+8口千兆POE端口"
+      ],
+      "metadata": {
+        "kind": "product",
+        "product_type": "switch",
+        "category": "云网管系列",
+        "family": "",
+        "model": "PS110G"
+      }
+    },
+    {
+      "question": "产品参数：PS208G",
+      "answer": "产品型号: PS208G\n产品类型: switch\n分类: 云网管系列\nseries: 云网管POE\nports: 8\npoe_ports: 8\nspeed: 百+千\nmanagement: 云管理\nnote: 2口上联千兆+8口千兆POE端口",
+      "section": "产品 > switch > 云网管系列 > PS208G",
+      "keywords": [
+        "PS208G",
+        "",
+        "switch",
+        "云网管系列",
+        "",
+        "PS208G",
+        "云网管POE",
+        "8",
+        "8",
+        "百+千",
+        "云管理",
+        "",
+        "",
+        "",
+        "2口上联千兆+8口千兆POE端口"
+      ],
+      "metadata": {
+        "kind": "product",
+        "product_type": "switch",
+        "category": "云网管系列",
+        "family": "",
+        "model": "PS208G"
+      }
+    },
+    {
+      "question": "产品参数：PS316G",
+      "answer": "产品型号: PS316G\n产品类型: switch\n分类: 云网管系列\nseries: 云网管POE\nports: 16\npoe_ports: 16\nspeed: 百+千\nmanagement: 云管理\nnote: 3口上联千兆+16口千兆POE端口",
+      "section": "产品 > switch > 云网管系列 > PS316G",
+      "keywords": [
+        "PS316G",
+        "",
+        "switch",
+        "云网管系列",
+        "",
+        "PS316G",
+        "云网管POE",
+        "16",
+        "16",
+        "百+千",
+        "云管理",
+        "",
+        "",
+        "",
+        "3口上联千兆+16口千兆POE端口"
+      ],
+      "metadata": {
+        "kind": "product",
+        "product_type": "switch",
+        "category": "云网管系列",
+        "family": "",
+        "model": "PS316G"
+      }
+    },
+    {
+      "question": "产品参数：IPS105",
+      "answer": "产品型号: IPS105\n产品类型: switch\n分类: POE系列\nseries: POE经典\nports: 5\npoe_ports: 4\nspeed: 百兆\nmanagement: 非管理",
+      "section": "产品 > switch > POE系列 > IPS105",
+      "keywords": [
+        "IPS105",
+        "",
+        "switch",
+        "POE系列",
+        "",
+        "IPS105",
+        "POE经典",
+        "5",
+        "4",
+        "百兆",
+        "非管理",
+        "",
+        "",
+        ""
+      ],
+      "metadata": {
+        "kind": "product",
+        "product_type": "switch",
+        "category": "POE系列",
+        "family": "",
+        "model": "IPS105"
+      }
+    },
+    {
+      "question": "产品参数：POE104DL",
+      "answer": "产品型号: POE104DL\n产品类型: switch\n分类: POE系列\nseries: POE经典\nports: 5\npoe_ports: 4\nspeed: 百兆\nmanagement: 非管理\nnote: 4+1上联，超紧凑",
+      "section": "产品 > switch > POE系列 > POE104DL",
+      "keywords": [
+        "POE104DL",
+        "",
+        "switch",
+        "POE系列",
+        "",
+        "POE104DL",
+        "POE经典",
+        "5",
+        "4",
+        "百兆",
+        "非管理",
+        "",
+        "",
+        "",
+        "4+1上联，超紧凑"
+      ],
+      "metadata": {
+        "kind": "product",
+        "product_type": "switch",
+        "category": "POE系列",
+        "family": "",
+        "model": "POE104DL"
+      }
+    },
+    {
+      "question": "产品参数：POE105S",
+      "answer": "产品型号: POE105S\n产品类型: switch\n分类: POE系列\nseries: POE经典\nports: 5\npoe_ports: 4\nspeed: 百兆\nmanagement: 非管理\nnote: 支持中继功能",
+      "section": "产品 > switch > POE系列 > POE105S",
+      "keywords": [
+        "POE105S",
+        "",
+        "switch",
+        "POE系列",
+        "",
+        "POE105S",
+        "POE经典",
+        "5",
+        "4",
+        "百兆",
+        "非管理",
+        "",
+        "",
+        "",
+        "支持中继功能"
+      ],
+      "metadata": {
+        "kind": "product",
+        "product_type": "switch",
+        "category": "POE系列",
+        "family": "",
+        "model": "POE105S"
+      }
+    },
+    {
+      "question": "产品参数：POE204D",
+      "answer": "产品型号: POE204D\n产品类型: switch\n分类: POE系列\nseries: POE经典\nports: 6\npoe_ports: 4\nspeed: 百兆\nmanagement: 非管理\nnote: 4+2上联，双上联",
+      "section": "产品 > switch > POE系列 > POE204D",
+      "keywords": [
+        "POE204D",
+        "",
+        "switch",
+        "POE系列",
+        "",
+        "POE204D",
+        "POE经典",
+        "6",
+        "4",
+        "百兆",
+        "非管理",
+        "",
+        "",
+        "",
+        "4+2上联，双上联"
+      ],
+      "metadata": {
+        "kind": "product",
+        "product_type": "switch",
+        "category": "POE系列",
+        "family": "",
+        "model": "POE204D"
+      }
+    },
+    {
+      "question": "产品参数：POE206D",
+      "answer": "产品型号: POE206D\n产品类型: switch\n分类: POE系列\nseries: POE经典\nports: 8\npoe_ports: 6\nspeed: 百兆\nmanagement: 非管理\nnote: 6+2上联，6口经典款",
+      "section": "产品 > switch > POE系列 > POE206D",
+      "keywords": [
+        "POE206D",
+        "",
+        "switch",
+        "POE系列",
+        "",
+        "POE206D",
+        "POE经典",
+        "8",
+        "6",
+        "百兆",
+        "非管理",
+        "",
+        "",
+        "",
+        "6+2上联，6口经典款"
+      ],
+      "metadata": {
+        "kind": "product",
+        "product_type": "switch",
+        "category": "POE系列",
+        "family": "",
+        "model": "POE206D"
+      }
+    },
+    {
+      "question": "产品参数：POE208D",
+      "answer": "产品型号: POE208D\n产品类型: switch\n分类: POE系列\nseries: POE经典\nports: 10\npoe_ports: 8\nspeed: 百兆\nmanagement: 非管理\nnote: 8+2上联，8口热销",
+      "section": "产品 > switch > POE系列 > POE208D",
+      "keywords": [
+        "POE208D",
+        "",
+        "switch",
+        "POE系列",
+        "",
+        "POE208D",
+        "POE经典",
+        "10",
+        "8",
+        "百兆",
+        "非管理",
+        "",
+        "",
+        "",
+        "8+2上联，8口热销"
+      ],
+      "metadata": {
+        "kind": "product",
+        "product_type": "switch",
+        "category": "POE系列",
+        "family": "",
+        "model": "POE208D"
+      }
+    },
+    {
+      "question": "产品参数：POE208G",
+      "answer": "产品型号: POE208G\n产品类型: switch\n分类: POE系列\nseries: POE经典\nports: 10\npoe_ports: 8\nspeed: 百+千\nmanagement: 非管理\nnote: 8+2上联，千兆",
+      "section": "产品 > switch > POE系列 > POE208G",
+      "keywords": [
+        "POE208G",
+        "",
+        "switch",
+        "POE系列",
+        "",
+        "POE208G",
+        "POE经典",
+        "10",
+        "8",
+        "百+千",
+        "非管理",
+        "",
+        "",
+        "",
+        "8+2上联，千兆"
+      ],
+      "metadata": {
+        "kind": "product",
+        "product_type": "switch",
+        "category": "POE系列",
+        "family": "",
+        "model": "POE208G"
+      }
+    },
+    {
+      "question": "产品参数：POE216G",
+      "answer": "产品型号: POE216G\n产品类型: switch\n分类: POE系列\nseries: POE经典\nports: 18\npoe_ports: 16\nspeed: 百+千\nmanagement: 非管理\nnote: 16+2上联",
+      "section": "产品 > switch > POE系列 > POE216G",
+      "keywords": [
+        "POE216G",
+        "",
+        "switch",
+        "POE系列",
+        "",
+        "POE216G",
+        "POE经典",
+        "18",
+        "16",
+        "百+千",
+        "非管理",
+        "",
+        "",
+        "",
+        "16+2上联"
+      ],
+      "metadata": {
+        "kind": "product",
+        "product_type": "switch",
+        "category": "POE系列",
+        "family": "",
+        "model": "POE216G"
+      }
+    },
+    {
+      "question": "产品参数：POE308G",
+      "answer": "产品型号: POE308G\n产品类型: switch\n分类: POE系列\nseries: POE经典\nports: 8\npoe_ports: 8\nspeed: 百+千\nmanagement: 非管理\nnote: 全千兆8口",
+      "section": "产品 > switch > POE系列 > POE308G",
+      "keywords": [
+        "POE308G",
+        "",
+        "switch",
+        "POE系列",
+        "",
+        "POE308G",
+        "POE经典",
+        "8",
+        "8",
+        "百+千",
+        "非管理",
+        "",
+        "",
+        "",
+        "全千兆8口"
+      ],
+      "metadata": {
+        "kind": "product",
+        "product_type": "switch",
+        "category": "POE系列",
+        "family": "",
+        "model": "POE308G"
+      }
+    },
+    {
+      "question": "产品参数：POE316G",
+      "answer": "产品型号: POE316G\n产品类型: switch\n分类: POE系列\nseries: POE经典\nports: 16\npoe_ports: 16\nspeed: 百+千\nmanagement: 非管理\nnote: 全千兆16口",
+      "section": "产品 > switch > POE系列 > POE316G",
+      "keywords": [
+        "POE316G",
+        "",
+        "switch",
+        "POE系列",
+        "",
+        "POE316G",
+        "POE经典",
+        "16",
+        "16",
+        "百+千",
+        "非管理",
+        "",
+        "",
+        "",
+        "全千兆16口"
+      ],
+      "metadata": {
+        "kind": "product",
+        "product_type": "switch",
+        "category": "POE系列",
+        "family": "",
+        "model": "POE316G"
+      }
+    },
+    {
+      "question": "产品参数：POE424G",
+      "answer": "产品型号: POE424G\n产品类型: switch\n分类: POE系列\nseries: POE经典\nports: 24\npoe_ports: 24\nmanagement: 非管理\nnote: 旗舰24口",
+      "section": "产品 > switch > POE系列 > POE424G",
+      "keywords": [
+        "POE424G",
+        "",
+        "switch",
+        "POE系列",
+        "",
+        "POE424G",
+        "POE经典",
+        "24",
+        "24",
+        "",
+        "非管理",
+        "",
+        "",
+        "",
+        "旗舰24口"
+      ],
+      "metadata": {
+        "kind": "product",
+        "product_type": "switch",
+        "category": "POE系列",
+        "family": "",
+        "model": "POE424G"
+      }
+    },
+    {
+      "question": "产品参数：POE103S",
+      "answer": "产品型号: POE103S\n产品类型: switch\n分类: POE系列\nseries: POE经典\nports: 3\npoe_ports: 3\nspeed: 百兆\nmanagement: 非管理\nnote: 中继交换机",
+      "section": "产品 > switch > POE系列 > POE103S",
+      "keywords": [
+        "POE103S",
+        "",
+        "switch",
+        "POE系列",
+        "",
+        "POE103S",
+        "POE经典",
+        "3",
+        "3",
+        "百兆",
+        "非管理",
+        "",
+        "",
+        "",
+        "中继交换机"
+      ],
+      "metadata": {
+        "kind": "product",
+        "product_type": "switch",
+        "category": "POE系列",
+        "family": "",
+        "model": "POE103S"
+      }
+    },
+    {
+      "question": "产品参数：POE204E",
+      "answer": "产品型号: POE204E\n产品类型: switch\n分类: POE系列\nseries: POE经典\nports: 6\npoe_ports: 4\nspeed: 百兆\nmanagement: 非管理\nnote: 4+2上联，外置电源",
+      "section": "产品 > switch > POE系列 > POE204E",
+      "keywords": [
+        "POE204E",
+        "",
+        "switch",
+        "POE系列",
+        "",
+        "POE204E",
+        "POE经典",
+        "6",
+        "4",
+        "百兆",
+        "非管理",
+        "",
+        "",
+        "",
+        "4+2上联，外置电源"
+      ],
+      "metadata": {
+        "kind": "product",
+        "product_type": "switch",
+        "category": "POE系列",
+        "family": "",
+        "model": "POE204E"
+      }
+    },
+    {
+      "question": "产品参数：GPOE204",
+      "answer": "产品型号: GPOE204\n产品类型: switch\n分类: GPOE系列\nseries: GPOE千兆\nports: 6\npoe_ports: 4\nspeed: 全千兆\nmanagement: 非管理\nnote: 4+2上联",
+      "section": "产品 > switch > GPOE系列 > GPOE204",
+      "keywords": [
+        "GPOE204",
+        "",
+        "switch",
+        "GPOE系列",
+        "",
+        "GPOE204",
+        "GPOE千兆",
+        "6",
+        "4",
+        "全千兆",
+        "非管理",
+        "",
+        "",
+        "",
+        "4+2上联"
+      ],
+      "metadata": {
+        "kind": "product",
+        "product_type": "switch",
+        "category": "GPOE系列",
+        "family": "",
+        "model": "GPOE204"
+      }
+    },
+    {
+      "question": "产品参数：GPOE208",
+      "answer": "产品型号: GPOE208\n产品类型: switch\n分类: GPOE系列\nseries: GPOE千兆\nports: 10\npoe_ports: 8\nspeed: 全千兆\nmanagement: 非管理\nnote: 8+2上联",
+      "section": "产品 > switch > GPOE系列 > GPOE208",
+      "keywords": [
+        "GPOE208",
+        "",
+        "switch",
+        "GPOE系列",
+        "",
+        "GPOE208",
+        "GPOE千兆",
+        "10",
+        "8",
+        "全千兆",
+        "非管理",
+        "",
+        "",
+        "",
+        "8+2上联"
+      ],
+      "metadata": {
+        "kind": "product",
+        "product_type": "switch",
+        "category": "GPOE系列",
+        "family": "",
+        "model": "GPOE208"
+      }
+    },
+    {
+      "question": "产品参数：GPOE216",
+      "answer": "产品型号: GPOE216\n产品类型: switch\n分类: GPOE系列\nseries: GPOE千兆\nports: 18\npoe_ports: 16\nspeed: 全千兆\nmanagement: 非管理\nnote: 16+2上联",
+      "section": "产品 > switch > GPOE系列 > GPOE216",
+      "keywords": [
+        "GPOE216",
+        "",
+        "switch",
+        "GPOE系列",
+        "",
+        "GPOE216",
+        "GPOE千兆",
+        "18",
+        "16",
+        "全千兆",
+        "非管理",
+        "",
+        "",
+        "",
+        "16+2上联"
+      ],
+      "metadata": {
+        "kind": "product",
+        "product_type": "switch",
+        "category": "GPOE系列",
+        "family": "",
+        "model": "GPOE216"
+      }
+    },
+    {
+      "question": "产品参数：GPOE224",
+      "answer": "产品型号: GPOE224\n产品类型: switch\n分类: GPOE系列\nseries: GPOE千兆\nports: 26\npoe_ports: 24\nspeed: 全千兆\nmanagement: 非管理\nnote: 24+2上联",
+      "section": "产品 > switch > GPOE系列 > GPOE224",
+      "keywords": [
+        "GPOE224",
+        "",
+        "switch",
+        "GPOE系列",
+        "",
+        "GPOE224",
+        "GPOE千兆",
+        "26",
+        "24",
+        "全千兆",
+        "非管理",
+        "",
+        "",
+        "",
+        "24+2上联"
+      ],
+      "metadata": {
+        "kind": "product",
+        "product_type": "switch",
+        "category": "GPOE系列",
+        "family": "",
+        "model": "GPOE224"
+      }
+    },
+    {
+      "question": "产品参数：GPOE316",
+      "answer": "产品型号: GPOE316\n产品类型: switch\n分类: GPOE系列\nseries: GPOE千兆\nports: 16\npoe_ports: 16\nspeed: 全千兆\nmanagement: 非管理\nnote: 全千兆16口",
+      "section": "产品 > switch > GPOE系列 > GPOE316",
+      "keywords": [
+        "GPOE316",
+        "",
+        "switch",
+        "GPOE系列",
+        "",
+        "GPOE316",
+        "GPOE千兆",
+        "16",
+        "16",
+        "全千兆",
+        "非管理",
+        "",
+        "",
+        "",
+        "全千兆16口"
+      ],
+      "metadata": {
+        "kind": "product",
+        "product_type": "switch",
+        "category": "GPOE系列",
+        "family": "",
+        "model": "GPOE316"
+      }
+    },
+    {
+      "question": "产品参数：GPOE404",
+      "answer": "产品型号: GPOE404\n产品类型: switch\n分类: GPOE系列\nseries: GPOE千兆\nports: 4\npoe_ports: 4\nspeed: 全千兆\nmanagement: 非管理\nnote: 2.5G高速POE",
+      "section": "产品 > switch > GPOE系列 > GPOE404",
+      "keywords": [
+        "GPOE404",
+        "",
+        "switch",
+        "GPOE系列",
+        "",
+        "GPOE404",
+        "GPOE千兆",
+        "4",
+        "4",
+        "全千兆",
+        "非管理",
+        "",
+        "",
+        "",
+        "2.5G高速POE"
+      ],
+      "metadata": {
+        "kind": "product",
+        "product_type": "switch",
+        "category": "GPOE系列",
+        "family": "",
+        "model": "GPOE404"
+      }
+    },
+    {
+      "question": "产品参数：GPOE408",
+      "answer": "产品型号: GPOE408\n产品类型: switch\n分类: GPOE系列\nseries: GPOE千兆\nports: 8\npoe_ports: 8\nspeed: 全千兆\nmanagement: 非管理\nnote: 2.5G高速POE",
+      "section": "产品 > switch > GPOE系列 > GPOE408",
+      "keywords": [
+        "GPOE408",
+        "",
+        "switch",
+        "GPOE系列",
+        "",
+        "GPOE408",
+        "GPOE千兆",
+        "8",
+        "8",
+        "全千兆",
+        "非管理",
+        "",
+        "",
+        "",
+        "2.5G高速POE"
+      ],
+      "metadata": {
+        "kind": "product",
+        "product_type": "switch",
+        "category": "GPOE系列",
+        "family": "",
+        "model": "GPOE408"
+      }
+    },
+    {
+      "question": "产品参数：GPOE424",
+      "answer": "产品型号: GPOE424\n产品类型: switch\n分类: GPOE系列\nseries: GPOE千兆\nports: 24\npoe_ports: 24\nspeed: 全千兆\nmanagement: 非管理\nnote: 千兆24口",
+      "section": "产品 > switch > GPOE系列 > GPOE424",
+      "keywords": [
+        "GPOE424",
+        "",
+        "switch",
+        "GPOE系列",
+        "",
+        "GPOE424",
+        "GPOE千兆",
+        "24",
+        "24",
+        "全千兆",
+        "非管理",
+        "",
+        "",
+        "",
+        "千兆24口"
+      ],
+      "metadata": {
+        "kind": "product",
+        "product_type": "switch",
+        "category": "GPOE系列",
+        "family": "",
+        "model": "GPOE424"
+      }
+    },
+    {
+      "question": "产品参数：I105",
+      "answer": "产品型号: I105\n产品类型: switch\n分类: 非供电非管理系列\nseries: 工业级\nports: 5\npoe_ports: 0\nspeed: 百兆\nmanagement: 非管理\npoe_budget_w: 0\nnote: 工业环境交换机",
+      "section": "产品 > switch > 非供电非管理系列 > I105",
+      "keywords": [
+        "I105",
+        "",
+        "switch",
+        "非供电非管理系列",
+        "",
+        "I105",
+        "工业级",
+        "5",
+        "0",
+        "百兆",
+        "非管理",
+        "",
+        "0",
+        "",
+        "工业环境交换机"
+      ],
+      "metadata": {
+        "kind": "product",
+        "product_type": "switch",
+        "category": "非供电非管理系列",
+        "family": "",
+        "model": "I105"
+      }
+    },
+    {
+      "question": "产品参数：IG108",
+      "answer": "产品型号: IG108\n产品类型: switch\n分类: 非供电非管理系列\nseries: 2.5G高速\nports: 8\npoe_ports: 0\nspeed: 2.5G\nmanagement: 非管理\npoe_budget_w: 0\nnote: 8口2.5G",
+      "section": "产品 > switch > 非供电非管理系列 > IG108",
+      "keywords": [
+        "IG108",
+        "",
+        "switch",
+        "非供电非管理系列",
+        "",
+        "IG108",
+        "2.5G高速",
+        "8",
+        "0",
+        "2.5G",
+        "非管理",
+        "",
+        "0",
+        "",
+        "8口2.5G"
+      ],
+      "metadata": {
+        "kind": "product",
+        "product_type": "switch",
+        "category": "非供电非管理系列",
+        "family": "",
+        "model": "IG108"
+      }
+    },
+    {
+      "question": "产品参数：IG204",
+      "answer": "产品型号: IG204\n产品类型: switch\n分类: 非供电非管理系列\nseries: 2.5G高速\nports: 4\npoe_ports: 0\nspeed: 2.5G\nmanagement: 非管理\npoe_budget_w: 0\nnote: 4口2.5G",
+      "section": "产品 > switch > 非供电非管理系列 > IG204",
+      "keywords": [
+        "IG204",
+        "",
+        "switch",
+        "非供电非管理系列",
+        "",
+        "IG204",
+        "2.5G高速",
+        "4",
+        "0",
+        "2.5G",
+        "非管理",
+        "",
+        "0",
+        "",
+        "4口2.5G"
+      ],
+      "metadata": {
+        "kind": "product",
+        "product_type": "switch",
+        "category": "非供电非管理系列",
+        "family": "",
+        "model": "IG204"
+      }
+    },
+    {
+      "question": "产品参数：SG106",
+      "answer": "产品型号: SG106\n产品类型: switch\n分类: 非供电非管理系列\nseries: 千兆基础\nports: 6\npoe_ports: 0\nspeed: 千兆\nmanagement: 非管理\npoe_budget_w: 0\nnote: 6口千兆",
+      "section": "产品 > switch > 非供电非管理系列 > SG106",
+      "keywords": [
+        "SG106",
+        "",
+        "switch",
+        "非供电非管理系列",
+        "",
+        "SG106",
+        "千兆基础",
+        "6",
+        "0",
+        "千兆",
+        "非管理",
+        "",
+        "0",
+        "",
+        "6口千兆"
+      ],
+      "metadata": {
+        "kind": "product",
+        "product_type": "switch",
+        "category": "非供电非管理系列",
+        "family": "",
+        "model": "SG106"
+      }
+    },
+    {
+      "question": "产品参数：26S01",
+      "answer": "产品型号: 26S01\n产品类型: switch\n分类: 非供电非管理系列\nseries: 管理型\nports: 26\npoe_ports: 0\nmanagement: 轻管理\npoe_budget_w: 0\nnote: 26口管理型",
+      "section": "产品 > switch > 非供电非管理系列 > 26S01",
+      "keywords": [
+        "26S01",
+        "",
+        "switch",
+        "非供电非管理系列",
+        "",
+        "26S01",
+        "管理型",
+        "26",
+        "0",
+        "",
+        "轻管理",
+        "",
+        "0",
+        "",
+        "26口管理型"
+      ],
+      "metadata": {
+        "kind": "product",
+        "product_type": "switch",
+        "category": "非供电非管理系列",
+        "family": "",
+        "model": "26S01"
+      }
+    },
+    {
+      "question": "产品参数：TFS106",
+      "answer": "产品型号: TFS106\n产品类型: switch\n分类: 非供电非管理系列\nseries: 2.5G管理\nports: 6\npoe_ports: 0\nspeed: 2.5G\nmanagement: 轻管理\npoe_budget_w: 0\nnote: 6口2.5G管理",
+      "section": "产品 > switch > 非供电非管理系列 > TFS106",
+      "keywords": [
+        "TFS106",
+        "",
+        "switch",
+        "非供电非管理系列",
+        "",
+        "TFS106",
+        "2.5G管理",
+        "6",
+        "0",
+        "2.5G",
+        "轻管理",
+        "",
+        "0",
+        "",
+        "6口2.5G管理"
+      ],
+      "metadata": {
+        "kind": "product",
+        "product_type": "switch",
+        "category": "非供电非管理系列",
+        "family": "",
+        "model": "TFS106"
+      }
+    },
+    {
+      "question": "产品参数：TFS109",
+      "answer": "产品型号: TFS109\n产品类型: switch\n分类: 非供电非管理系列\nseries: 2.5G管理\nports: 9\npoe_ports: 0\nspeed: 2.5G\nmanagement: 轻管理\npoe_budget_w: 0\nnote: 9口2.5G管理",
+      "section": "产品 > switch > 非供电非管理系列 > TFS109",
+      "keywords": [
+        "TFS109",
+        "",
+        "switch",
+        "非供电非管理系列",
+        "",
+        "TFS109",
+        "2.5G管理",
+        "9",
+        "0",
+        "2.5G",
+        "轻管理",
+        "",
+        "0",
+        "",
+        "9口2.5G管理"
+      ],
+      "metadata": {
+        "kind": "product",
+        "product_type": "switch",
+        "category": "非供电非管理系列",
+        "family": "",
+        "model": "TFS109"
+      }
+    },
+    {
+      "question": "产品参数：SOF21G",
+      "answer": "产品型号: SOF21G\n产品类型: switch\n分类: 非供电非管理系列\nseries: 千兆分线器\nports: 3\npoe_ports: 0\nspeed: 千兆\nmanagement: 非管理\nfanless: 是\npoe_budget_w: 0\nnote: 1分2千兆分线器",
+      "section": "产品 > switch > 非供电非管理系列 > SOF21G",
+      "keywords": [
+        "SOF21G",
+        "",
+        "switch",
+        "非供电非管理系列",
+        "",
+        "SOF21G",
+        "千兆分线器",
+        "3",
+        "0",
+        "千兆",
+        "非管理",
+        "是",
+        "0",
+        "",
+        "1分2千兆分线器"
+      ],
+      "metadata": {
+        "kind": "product",
+        "product_type": "switch",
+        "category": "非供电非管理系列",
+        "family": "",
+        "model": "SOF21G"
+      }
+    },
+    {
+      "question": "产品参数：SOF22G",
+      "answer": "产品型号: SOF22G\n产品类型: switch\n分类: 非供电非管理系列\nseries: 千兆分线器\nports: 3\npoe_ports: 0\nspeed: 千兆\nmanagement: 非管理\nfanless: 是\npoe_budget_w: 0\nnote: 1分2千兆分线器",
+      "section": "产品 > switch > 非供电非管理系列 > SOF22G",
+      "keywords": [
+        "SOF22G",
+        "",
+        "switch",
+        "非供电非管理系列",
+        "",
+        "SOF22G",
+        "千兆分线器",
+        "3",
+        "0",
+        "千兆",
+        "非管理",
+        "是",
+        "0",
+        "",
+        "1分2千兆分线器"
+      ],
+      "metadata": {
+        "kind": "product",
+        "product_type": "switch",
+        "category": "非供电非管理系列",
+        "family": "",
+        "model": "SOF22G"
+      }
+    },
+    {
+      "question": "产品参数：SFP101P",
+      "answer": "产品型号: SFP101P\n产品类型: switch\n分类: 非供电非管理系列\nseries: 光口转换\nports: 1\npoe_ports: 0\nspeed: 千兆\nmanagement: 非管理\nfanless: 是\npoe_budget_w: 0\nnote: SFP转电口",
+      "section": "产品 > switch > 非供电非管理系列 > SFP101P",
+      "keywords": [
+        "SFP101P",
+        "",
+        "switch",
+        "非供电非管理系列",
+        "",
+        "SFP101P",
+        "光口转换",
+        "1",
+        "0",
+        "千兆",
+        "非管理",
+        "是",
+        "0",
+        "",
+        "SFP转电口"
+      ],
+      "metadata": {
+        "kind": "product",
+        "product_type": "switch",
+        "category": "非供电非管理系列",
+        "family": "",
+        "model": "SFP101P"
+      }
+    },
+    {
+      "question": "产品参数：SPOE103S",
+      "answer": "产品型号: SPOE103S\n产品类型: switch\n分类: SPOE系列\nseries: SPOE中继\nports: 3\npoe_ports: 3\nspeed: 百兆\nmanagement: 非管理\nnote: 3口简易POE中继",
+      "section": "产品 > switch > SPOE系列 > SPOE103S",
+      "keywords": [
+        "SPOE103S",
+        "",
+        "switch",
+        "SPOE系列",
+        "",
+        "SPOE103S",
+        "SPOE中继",
+        "3",
+        "3",
+        "百兆",
+        "非管理",
+        "",
+        "",
+        "",
+        "3口简易POE中继"
+      ],
+      "metadata": {
+        "kind": "product",
+        "product_type": "switch",
+        "category": "SPOE系列",
+        "family": "",
+        "model": "SPOE103S"
+      }
+    },
+    {
+      "question": "产品参数：SPOE103SM",
+      "answer": "产品型号: SPOE103SM\n产品类型: switch\n分类: SPOE系列\nseries: SPOE中继\nports: 3\npoe_ports: 3\nspeed: 百兆\nmanagement: 非管理\nnote: 3口POE中继增强版",
+      "section": "产品 > switch > SPOE系列 > SPOE103SM",
+      "keywords": [
+        "SPOE103SM",
+        "",
+        "switch",
+        "SPOE系列",
+        "",
+        "SPOE103SM",
+        "SPOE中继",
+        "3",
+        "3",
+        "百兆",
+        "非管理",
+        "",
+        "",
+        "",
+        "3口POE中继增强版"
+      ],
+      "metadata": {
+        "kind": "product",
+        "product_type": "switch",
+        "category": "SPOE系列",
+        "family": "",
+        "model": "SPOE103SM"
+      }
+    },
+    {
+      "question": "产品参数：SPOE108C",
+      "answer": "产品型号: SPOE108C\n产品类型: switch\n分类: SPOE系列\nseries: SPOE交换机\nports: 8\npoe_ports: 8\nspeed: 百兆\nmanagement: 非管理\nnote: 8口样品",
+      "section": "产品 > switch > SPOE系列 > SPOE108C",
+      "keywords": [
+        "SPOE108C",
+        "",
+        "switch",
+        "SPOE系列",
+        "",
+        "SPOE108C",
+        "SPOE交换机",
+        "8",
+        "8",
+        "百兆",
+        "非管理",
+        "",
+        "",
+        "",
+        "8口样品"
+      ],
+      "metadata": {
+        "kind": "product",
+        "product_type": "switch",
+        "category": "SPOE系列",
+        "family": "",
+        "model": "SPOE108C"
+      }
+    },
+    {
+      "question": "产品参数：POE105D / 外电POE105D",
+      "answer": "产品型号: POE105D\n产品类型: switch\n分类: 外置电源AI系列\n别名: 外电POE105D\nseries: 外置电源AI\nports: 5\npoe_ports: 4\nspeed: 百兆\nmanagement: 非管理\nnote: 5口AI兼容,外置电源",
+      "section": "产品 > switch > 外置电源AI系列 > POE105D",
+      "keywords": [
+        "POE105D",
+        "外电POE105D",
+        "switch",
+        "外置电源AI系列",
+        "",
+        "POE105D",
+        "外置电源AI",
+        "5",
+        "4",
+        "百兆",
+        "非管理",
+        "",
+        "",
+        "",
+        "5口AI兼容,外置电源",
+        "外电POE105D"
+      ],
+      "metadata": {
+        "kind": "product",
+        "product_type": "switch",
+        "category": "外置电源AI系列",
+        "family": "",
+        "model": "POE105D"
+      }
+    },
+    {
+      "question": "产品参数：POE106D / 外电POE106D",
+      "answer": "产品型号: POE106D\n产品类型: switch\n分类: 外置电源AI系列\n别名: 外电POE106D\nseries: 外置电源AI\nports: 6\npoe_ports: 6\nspeed: 百兆\nmanagement: 非管理\nnote: 6口AI兼容,外置电源",
+      "section": "产品 > switch > 外置电源AI系列 > POE106D",
+      "keywords": [
+        "POE106D",
+        "外电POE106D",
+        "switch",
+        "外置电源AI系列",
+        "",
+        "POE106D",
+        "外置电源AI",
+        "6",
+        "6",
+        "百兆",
+        "非管理",
+        "",
+        "",
+        "",
+        "6口AI兼容,外置电源",
+        "外电POE106D"
+      ],
+      "metadata": {
+        "kind": "product",
+        "product_type": "switch",
+        "category": "外置电源AI系列",
+        "family": "",
+        "model": "POE106D"
+      }
+    },
+    {
+      "question": "产品参数：POE106P / 外电POE106P",
+      "answer": "产品型号: POE106P\n产品类型: switch\n分类: 外置电源AI系列\n别名: 外电POE106P\nseries: 外置电源AI\nports: 6\npoe_ports: 6\nspeed: 百兆\nmanagement: 非管理\nnote: 6口AI兼容,网口朝下",
+      "section": "产品 > switch > 外置电源AI系列 > POE106P",
+      "keywords": [
+        "POE106P",
+        "外电POE106P",
+        "switch",
+        "外置电源AI系列",
+        "",
+        "POE106P",
+        "外置电源AI",
+        "6",
+        "6",
+        "百兆",
+        "非管理",
+        "",
+        "",
+        "",
+        "6口AI兼容,网口朝下",
+        "外电POE106P"
+      ],
+      "metadata": {
+        "kind": "product",
+        "product_type": "switch",
+        "category": "外置电源AI系列",
+        "family": "",
+        "model": "POE106P"
+      }
+    },
+    {
+      "question": "产品参数：POE108DL / 外电POE108DL",
+      "answer": "产品型号: POE108DL\n产品类型: switch\n分类: 外置电源AI系列\n别名: 外电POE108DL\nseries: 外置电源AI\nports: 8\npoe_ports: 8\nspeed: 百兆\nmanagement: 非管理\nnote: 8口AI兼容新版",
+      "section": "产品 > switch > 外置电源AI系列 > POE108DL",
+      "keywords": [
+        "POE108DL",
+        "外电POE108DL",
+        "switch",
+        "外置电源AI系列",
+        "",
+        "POE108DL",
+        "外置电源AI",
+        "8",
+        "8",
+        "百兆",
+        "非管理",
+        "",
+        "",
+        "",
+        "8口AI兼容新版",
+        "外电POE108DL"
+      ],
+      "metadata": {
+        "kind": "product",
+        "product_type": "switch",
+        "category": "外置电源AI系列",
+        "family": "",
+        "model": "POE108DL"
+      }
+    },
+    {
+      "question": "产品参数：POE110DL / 外电POE110DL",
+      "answer": "产品型号: POE110DL\n产品类型: switch\n分类: 外置电源AI系列\n别名: 外电POE110DL\nseries: 外置电源AI\nports: 10\npoe_ports: 10\nspeed: 百兆\nmanagement: 非管理\nnote: 10口AI兼容新版",
+      "section": "产品 > switch > 外置电源AI系列 > POE110DL",
+      "keywords": [
+        "POE110DL",
+        "外电POE110DL",
+        "switch",
+        "外置电源AI系列",
+        "",
+        "POE110DL",
+        "外置电源AI",
+        "10",
+        "10",
+        "百兆",
+        "非管理",
+        "",
+        "",
+        "",
+        "10口AI兼容新版",
+        "外电POE110DL"
+      ],
+      "metadata": {
+        "kind": "product",
+        "product_type": "switch",
+        "category": "外置电源AI系列",
+        "family": "",
+        "model": "POE110DL"
+      }
+    },
+    {
+      "question": "产品参数：C223W",
+      "answer": "产品型号: C223W\n产品类型: camera\n分类: camera\ntype: 卡片机\nconnectivity: WIFI\nfeatures: 室内卡片机\nptz: 否",
+      "section": "产品 > camera > camera > C223W",
+      "keywords": [
+        "C223W",
+        "",
+        "camera",
+        "camera",
+        "",
+        "C223W",
+        "卡片机",
+        "WIFI",
+        "室内卡片机",
+        "",
+        "",
+        "否"
+      ],
+      "metadata": {
+        "kind": "product",
+        "product_type": "camera",
+        "category": "camera",
+        "family": "",
+        "model": "C223W"
+      }
+    },
+    {
+      "question": "产品参数：C233W",
+      "answer": "产品型号: C233W\n产品类型: camera\n分类: camera\ntype: 球机\nconnectivity: WIFI\nfeatures: 室内WIFI球机\nptz: 是",
+      "section": "产品 > camera > camera > C233W",
+      "keywords": [
+        "C233W",
+        "",
+        "camera",
+        "camera",
+        "",
+        "C233W",
+        "球机",
+        "WIFI",
+        "室内WIFI球机",
+        "",
+        "",
+        "是"
+      ],
+      "metadata": {
+        "kind": "product",
+        "product_type": "camera",
+        "category": "camera",
+        "family": "",
+        "model": "C233W"
+      }
+    },
+    {
+      "question": "产品参数：C334G",
+      "answer": "产品型号: C334G\n产品类型: camera\n分类: camera\ntype: 球机\nconnectivity: 4G\nfeatures: AOV黑光全彩\nnight_vision: AOV黑光\nptz: 是",
+      "section": "产品 > camera > camera > C334G",
+      "keywords": [
+        "C334G",
+        "",
+        "camera",
+        "camera",
+        "",
+        "C334G",
+        "球机",
+        "4G",
+        "AOV黑光全彩",
+        "",
+        "AOV黑光",
+        "是"
+      ],
+      "metadata": {
+        "kind": "product",
+        "product_type": "camera",
+        "category": "camera",
+        "family": "",
+        "model": "C334G"
+      }
+    },
+    {
+      "question": "产品参数：IBG311",
+      "answer": "产品型号: IBG311\n产品类型: camera\n分类: camera\ntype: 枪机\nconnectivity: 电池WIFI\nfeatures: 无线电池摄像机\nptz: 否",
+      "section": "产品 > camera > camera > IBG311",
+      "keywords": [
+        "IBG311",
+        "",
+        "camera",
+        "camera",
+        "",
+        "IBG311",
+        "枪机",
+        "电池WIFI",
+        "无线电池摄像机",
+        "",
+        "",
+        "否"
+      ],
+      "metadata": {
+        "kind": "product",
+        "product_type": "camera",
+        "category": "camera",
+        "family": "",
+        "model": "IBG311"
+      }
+    },
+    {
+      "question": "产品参数：IBG322",
+      "answer": "产品型号: IBG322\n产品类型: camera\n分类: camera\ntype: 球机\nfeatures: 球机系列\nptz: 是",
+      "section": "产品 > camera > camera > IBG322",
+      "keywords": [
+        "IBG322",
+        "",
+        "camera",
+        "camera",
+        "",
+        "IBG322",
+        "球机",
+        "",
+        "球机系列",
+        "",
+        "",
+        "是"
+      ],
+      "metadata": {
+        "kind": "product",
+        "product_type": "camera",
+        "category": "camera",
+        "family": "",
+        "model": "IBG322"
+      }
+    },
+    {
+      "question": "产品参数：IBZ472",
+      "answer": "产品型号: IBZ472\n产品类型: camera\n分类: camera\ntype: 球机\nconnectivity: 4G\nfeatures: AOV黑光全彩4G球机\nnight_vision: AOV黑光\nptz: 是",
+      "section": "产品 > camera > camera > IBZ472",
+      "keywords": [
+        "IBZ472",
+        "",
+        "camera",
+        "camera",
+        "",
+        "IBZ472",
+        "球机",
+        "4G",
+        "AOV黑光全彩4G球机",
+        "",
+        "AOV黑光",
+        "是"
+      ],
+      "metadata": {
+        "kind": "product",
+        "product_type": "camera",
+        "category": "camera",
+        "family": "",
+        "model": "IBZ472"
+      }
+    },
+    {
+      "question": "产品参数：IZ601",
+      "answer": "产品型号: IZ601\n产品类型: camera\n分类: camera\ntype: 双目摄像机\nconnectivity: 4G\nfeatures: 智能双目4G\nptz: 否\nnote: 双目",
+      "section": "产品 > camera > camera > IZ601",
+      "keywords": [
+        "IZ601",
+        "",
+        "camera",
+        "camera",
+        "",
+        "IZ601",
+        "双目摄像机",
+        "4G",
+        "智能双目4G",
+        "",
+        "",
+        "否",
+        "双目"
+      ],
+      "metadata": {
+        "kind": "product",
+        "product_type": "camera",
+        "category": "camera",
+        "family": "",
+        "model": "IZ601"
+      }
+    },
+    {
+      "question": "产品参数：POE5215DG",
+      "answer": "产品型号: POE5215DG\n产品类型: accessory\n分类: poe_injector\npower_w: 15\nform: 桌面式\nstandard: 802.3af\nusage: 标准POE供电",
+      "section": "产品 > accessory > poe_injector > POE5215DG",
+      "keywords": [
+        "POE5215DG",
+        "",
+        "accessory",
+        "poe_injector",
+        "",
+        "POE5215DG",
+        "15",
+        "桌面式",
+        "802.3af",
+        "标准POE供电"
+      ],
+      "metadata": {
+        "kind": "product",
+        "product_type": "accessory",
+        "category": "poe_injector",
+        "family": "",
+        "model": "POE5215DG"
+      }
+    },
+    {
+      "question": "产品参数：POE5215GC",
+      "answer": "产品型号: POE5215GC\n产品类型: accessory\n分类: poe_injector\npower_w: 15\nform: 墙插式\nstandard: 802.3af\nusage: 标准POE供电",
+      "section": "产品 > accessory > poe_injector > POE5215GC",
+      "keywords": [
+        "POE5215GC",
+        "",
+        "accessory",
+        "poe_injector",
+        "",
+        "POE5215GC",
+        "15",
+        "墙插式",
+        "802.3af",
+        "标准POE供电"
+      ],
+      "metadata": {
+        "kind": "product",
+        "product_type": "accessory",
+        "category": "poe_injector",
+        "family": "",
+        "model": "POE5215GC"
+      }
+    },
+    {
+      "question": "产品参数：POE5511",
+      "answer": "产品型号: POE5511\n产品类型: accessory\n分类: poe_injector\npower_w: 60\nform: 桌面式\nstandard: 非标大功率\nusage: 大功率非标供电",
+      "section": "产品 > accessory > poe_injector > POE5511",
+      "keywords": [
+        "POE5511",
+        "",
+        "accessory",
+        "poe_injector",
+        "",
+        "POE5511",
+        "60",
+        "桌面式",
+        "非标大功率",
+        "大功率非标供电"
+      ],
+      "metadata": {
+        "kind": "product",
+        "product_type": "accessory",
+        "category": "poe_injector",
+        "family": "",
+        "model": "POE5511"
+      }
+    },
+    {
+      "question": "产品参数：P012W4800250",
+      "answer": "产品型号: P012W4800250\n产品类型: accessory\n分类: poe_injector\npower_w: 12\nform: 桌面式\nusage: 小功率供电",
+      "section": "产品 > accessory > poe_injector > P012W4800250",
+      "keywords": [
+        "P012W4800250",
+        "",
+        "accessory",
+        "poe_injector",
+        "",
+        "P012W4800250",
+        "12",
+        "桌面式",
+        "",
+        "小功率供电"
+      ],
+      "metadata": {
+        "kind": "product",
+        "product_type": "accessory",
+        "category": "poe_injector",
+        "family": "",
+        "model": "P012W4800250"
+      }
+    },
+    {
+      "question": "产品参数：P012W4800300",
+      "answer": "产品型号: P012W4800300\n产品类型: accessory\n分类: poe_injector\npower_w: 12\nform: 桌面式\nusage: 小功率供电",
+      "section": "产品 > accessory > poe_injector > P012W4800300",
+      "keywords": [
+        "P012W4800300",
+        "",
+        "accessory",
+        "poe_injector",
+        "",
+        "P012W4800300",
+        "12",
+        "桌面式",
+        "",
+        "小功率供电"
+      ],
+      "metadata": {
+        "kind": "product",
+        "product_type": "accessory",
+        "category": "poe_injector",
+        "family": "",
+        "model": "P012W4800300"
+      }
+    },
+    {
+      "question": "产品参数：P015W4800",
+      "answer": "产品型号: P015W4800\n产品类型: accessory\n分类: poe_injector\npower_w: 15\nform: 墙插/桌面\nstandard: 802.3af\nusage: 标准功率供电",
+      "section": "产品 > accessory > poe_injector > P015W4800",
+      "keywords": [
+        "P015W4800",
+        "",
+        "accessory",
+        "poe_injector",
+        "",
+        "P015W4800",
+        "15",
+        "墙插/桌面",
+        "802.3af",
+        "标准功率供电"
+      ],
+      "metadata": {
+        "kind": "product",
+        "product_type": "accessory",
+        "category": "poe_injector",
+        "family": "",
+        "model": "P015W4800"
+      }
+    },
+    {
+      "question": "产品参数：P024WD",
+      "answer": "产品型号: P024WD\n产品类型: accessory\n分类: poe_injector\npower_w: 24\nform: 桌面式\nusage: 中功率供电",
+      "section": "产品 > accessory > poe_injector > P024WD",
+      "keywords": [
+        "P024WD",
+        "",
+        "accessory",
+        "poe_injector",
+        "",
+        "P024WD",
+        "24",
+        "桌面式",
+        "",
+        "中功率供电"
+      ],
+      "metadata": {
+        "kind": "product",
+        "product_type": "accessory",
+        "category": "poe_injector",
+        "family": "",
+        "model": "P024WD"
+      }
+    },
+    {
+      "question": "产品参数：P6611",
+      "answer": "产品型号: P6611\n产品类型: accessory\n分类: pd_splitter\ntype: POE分线器",
+      "section": "产品 > accessory > pd_splitter > P6611",
+      "keywords": [
+        "P6611",
+        "",
+        "accessory",
+        "pd_splitter",
+        "",
+        "P6611",
+        "POE分线器"
+      ],
+      "metadata": {
+        "kind": "product",
+        "product_type": "accessory",
+        "category": "pd_splitter",
+        "family": "",
+        "model": "P6611"
+      }
+    },
+    {
+      "question": "产品参数：P6612",
+      "answer": "产品型号: P6612\n产品类型: accessory\n分类: pd_splitter\ntype: POE分线器",
+      "section": "产品 > accessory > pd_splitter > P6612",
+      "keywords": [
+        "P6612",
+        "",
+        "accessory",
+        "pd_splitter",
+        "",
+        "P6612",
+        "POE分线器"
+      ],
+      "metadata": {
+        "kind": "product",
+        "product_type": "accessory",
+        "category": "pd_splitter",
+        "family": "",
+        "model": "P6612"
+      }
+    },
+    {
+      "question": "产品参数：P6701",
+      "answer": "产品型号: P6701\n产品类型: accessory\n分类: pd_splitter\ntype: POE分线器",
+      "section": "产品 > accessory > pd_splitter > P6701",
+      "keywords": [
+        "P6701",
+        "",
+        "accessory",
+        "pd_splitter",
+        "",
+        "P6701",
+        "POE分线器"
+      ],
+      "metadata": {
+        "kind": "product",
+        "product_type": "accessory",
+        "category": "pd_splitter",
+        "family": "",
+        "model": "P6701"
+      }
+    },
+    {
+      "question": "产品参数：P6911",
+      "answer": "产品型号: P6911\n产品类型: accessory\n分类: pd_splitter\ntype: POE分线器",
+      "section": "产品 > accessory > pd_splitter > P6911",
+      "keywords": [
+        "P6911",
+        "",
+        "accessory",
+        "pd_splitter",
+        "",
+        "P6911",
+        "POE分线器"
+      ],
+      "metadata": {
+        "kind": "product",
+        "product_type": "accessory",
+        "category": "pd_splitter",
+        "family": "",
+        "model": "P6911"
+      }
+    },
+    {
+      "question": "产品参数：P6401L",
+      "answer": "产品型号: P6401L\n产品类型: accessory\n分类: pd_splitter\ntype: POE尾线",
+      "section": "产品 > accessory > pd_splitter > P6401L",
+      "keywords": [
+        "P6401L",
+        "",
+        "accessory",
+        "pd_splitter",
+        "",
+        "P6401L",
+        "POE尾线"
+      ],
+      "metadata": {
+        "kind": "product",
+        "product_type": "accessory",
+        "category": "pd_splitter",
+        "family": "",
+        "model": "P6401L"
+      }
+    },
+    {
+      "question": "产品参数：P6501L",
+      "answer": "产品型号: P6501L\n产品类型: accessory\n分类: pd_splitter\ntype: POE尾线",
+      "section": "产品 > accessory > pd_splitter > P6501L",
+      "keywords": [
+        "P6501L",
+        "",
+        "accessory",
+        "pd_splitter",
+        "",
+        "P6501L",
+        "POE尾线"
+      ],
+      "metadata": {
+        "kind": "product",
+        "product_type": "accessory",
+        "category": "pd_splitter",
+        "family": "",
+        "model": "P6501L"
+      }
+    },
+    {
+      "question": "产品参数：P3501",
+      "answer": "产品型号: P3501\n产品类型: accessory\n分类: pd_splitter\ntype: PD受电模块",
+      "section": "产品 > accessory > pd_splitter > P3501",
+      "keywords": [
+        "P3501",
+        "",
+        "accessory",
+        "pd_splitter",
+        "",
+        "P3501",
+        "PD受电模块"
+      ],
+      "metadata": {
+        "kind": "product",
+        "product_type": "accessory",
+        "category": "pd_splitter",
+        "family": "",
+        "model": "P3501"
+      }
+    },
+    {
+      "question": "产品参数：P3511",
+      "answer": "产品型号: P3511\n产品类型: accessory\n分类: pd_splitter\ntype: PD受电模块",
+      "section": "产品 > accessory > pd_splitter > P3511",
+      "keywords": [
+        "P3511",
+        "",
+        "accessory",
+        "pd_splitter",
+        "",
+        "P3511",
+        "PD受电模块"
+      ],
+      "metadata": {
+        "kind": "product",
+        "product_type": "accessory",
+        "category": "pd_splitter",
+        "family": "",
+        "model": "P3511"
+      }
+    },
+    {
+      "question": "产品参数：IPS110",
+      "answer": "产品型号: IPS110\n产品类型: accessory\n分类: pd_splitter\ntype: POE延长中继器",
+      "section": "产品 > accessory > pd_splitter > IPS110",
+      "keywords": [
+        "IPS110",
+        "",
+        "accessory",
+        "pd_splitter",
+        "",
+        "IPS110",
+        "POE延长中继器"
+      ],
+      "metadata": {
+        "kind": "product",
+        "product_type": "accessory",
+        "category": "pd_splitter",
+        "family": "",
+        "model": "IPS110"
+      }
+    },
+    {
+      "question": "产品参数：C2112",
+      "answer": "产品型号: C2112\n产品类型: accessory\n分类: pd_splitter\ntype: 合分器",
+      "section": "产品 > accessory > pd_splitter > C2112",
+      "keywords": [
+        "C2112",
+        "",
+        "accessory",
+        "pd_splitter",
+        "",
+        "C2112",
+        "合分器"
+      ],
+      "metadata": {
+        "kind": "product",
+        "product_type": "accessory",
+        "category": "pd_splitter",
+        "family": "",
+        "model": "C2112"
+      }
+    },
+    {
+      "question": "产品参数：SD5115",
+      "answer": "产品型号: SD5115\n产品类型: accessory\n分类: pd_splitter\ntype: DC-DC芯片",
+      "section": "产品 > accessory > pd_splitter > SD5115",
+      "keywords": [
+        "SD5115",
+        "",
+        "accessory",
+        "pd_splitter",
+        "",
+        "SD5115",
+        "DC-DC芯片"
+      ],
+      "metadata": {
+        "kind": "product",
+        "product_type": "accessory",
+        "category": "pd_splitter",
+        "family": "",
+        "model": "SD5115"
+      }
+    }
+  ]
+}

@@ -15,16 +15,18 @@ from email_agent.domain.models import ParsedEmail
 class MailFetcher:
     """阿里企业邮箱 IMAP 客户端"""
 
-    def __init__(self, server: str, port: int, account: str, password: str):
+    def __init__(self, server: str, port: int, account: str, password: str,
+                 timeout: float = 30):
         self.server = server
         self.port = port
         self.account = account
         self.password = password
+        self.timeout = max(5.0, float(timeout))
         self._conn = None
 
     def connect(self):
         """建立 SSL 连接并登录"""
-        self._conn = imaplib.IMAP4_SSL(self.server, self.port)
+        self._conn = imaplib.IMAP4_SSL(self.server, self.port, timeout=self.timeout)
         self._conn.login(self.account, self.password)
 
     async def connect_async(self):

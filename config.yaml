@@ -14,6 +14,9 @@ mail:
   # ⚠️ 不是登录密码！在阿里邮箱设置里生成"客户端专用密码"
   password: ""
 
+  # IMAP 连接和读写超时（秒），避免后台计划任务长期卡住
+  imap_timeout: 30
+
   # 轮询间隔（秒）
   poll_interval: 300  # 5分钟
 
@@ -65,7 +68,7 @@ web_search:
   timeout: 15
   max_results: 3
   retries: 1
-  auto_send_low_risk: true
+  auto_send_low_risk: false
   allowed_intents:
     - "安装配置"
     - "使用指导"

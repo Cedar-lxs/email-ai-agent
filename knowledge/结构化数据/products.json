@@ -1,0 +1,114 @@
+{
+  "_meta": {
+    "source": "产品知识总库_v2.0.md",
+    "exported_at": "2026-08-03",
+    "note": "详细参数待从PDF规格书提取，当前为基础字段。null 表示待补充。"
+  },
+
+  "switch": {
+    "云网管系列": [
+      { "model": "GPS105S", "series": "云网管POE", "ports": 5, "poe_ports": 4, "speed": "全千兆", "management": "云管理", "fanless": null, "poe_budget_w": null, "switching_capacity_gbps": null, "note": "全千兆POE中继器" },
+      { "model": "GPS208", "series": "云网管POE", "ports": 8, "poe_ports": 8, "speed": "全千兆", "management": "云管理", "fanless": null, "poe_budget_w": null, "switching_capacity_gbps": null, "note": "全千兆8口POE云管理交换机"  },
+      { "model": "GPS316", "series": "云网管POE", "ports": 16, "poe_ports": 16, "speed": "全千兆", "management": "云管理", "fanless": null, "poe_budget_w": null, "switching_capacity_gbps": null, "note": "全千兆16口POE云管理交换机"  },
+      { "model": "GPS424", "series": "云网管POE", "ports": 24, "poe_ports": 24, "speed": "全千兆", "management": "云管理", "fanless": null, "poe_budget_w": null, "switching_capacity_gbps": null, "note": "全千兆24口POE云管理交换机"  },
+      { "model": "GS105", "series": "云网管非POE", "ports": 5, "poe_ports": 0, "speed": "全千兆", "management": "云管理", "fanless": null, "poe_budget_w": 0, "switching_capacity_gbps": null, "note": "全千兆5非POE云管理交换机"  },
+      { "model": "GS108", "series": "云网管非POE", "ports": 8, "poe_ports": 0, "speed": "全千兆", "management": "云管理", "fanless": null, "poe_budget_w": 0, "switching_capacity_gbps": null, "note": "全千兆8非POE云管理交换机"  },
+      { "model": "GS116", "series": "云网管非POE", "ports": 16, "poe_ports": 0, "speed": "全千兆", "management": "云管理", "fanless": null, "poe_budget_w": 0, "switching_capacity_gbps": null, "note": "全千兆16非POE云管理交换机"  },
+      { "model": "GFS124", "series": "云网管非POE", "ports": 24, "poe_ports": 0, "speed": "全千兆", "management": "云管理", "fanless": null, "poe_budget_w": 0, "switching_capacity_gbps": null, "note": "全千兆24非POE云管理交换机"  },
+      { "model": "GFS226", "series": "云网管非POE", "ports": 24, "poe_ports": 0, "speed": "全千兆", "management": "云管理", "fanless": null, "poe_budget_w": 0, "switching_capacity_gbps": null, "note": "全千兆24非POE云管理交换机"  },
+      { "model": "PS104G", "series": "云网管POE", "ports": 5, "poe_ports": 4, "speed": "百+千", "management": "云管理", "fanless": null, "poe_budget_w": null, "switching_capacity_gbps": null, "note": "1口上联千兆+2口千兆POE端口+2口百兆POE端口"  },
+      { "model": "PS110G", "series": "云网管POE", "ports": 10, "poe_ports": 8, "speed": "百+千", "management": "云管理", "fanless": null, "poe_budget_w": null, "switching_capacity_gbps": null, "note": "2口上联千兆+8口千兆POE端口"  },
+      { "model": "PS208G", "series": "云网管POE", "ports": 8, "poe_ports": 8, "speed": "百+千", "management": "云管理", "fanless": null, "poe_budget_w": null, "switching_capacity_gbps": null, "note": "2口上联千兆+8口千兆POE端口"  },
+      { "model": "PS316G", "series": "云网管POE", "ports": 16, "poe_ports": 16, "speed": "百+千", "management": "云管理", "fanless": null, "poe_budget_w": null, "switching_capacity_gbps": null, "note": "3口上联千兆+16口千兆POE端口"  }
+    ],
+
+    "POE系列": [
+      { "model": "IPS105", "series": "POE经典", "ports": 5, "poe_ports": 4, "speed": "百兆", "management": "非管理", "fanless": null, "poe_budget_w": null, "switching_capacity_gbps": null },
+      { "model": "POE104DL", "series": "POE经典", "ports": 5, "poe_ports": 4, "speed": "百兆", "management": "非管理", "fanless": null, "poe_budget_w": null, "switching_capacity_gbps": null, "note": "4+1上联，超紧凑" },
+      { "model": "POE105S", "series": "POE经典", "ports": 5, "poe_ports": 4, "speed": "百兆", "management": "非管理", "fanless": null, "poe_budget_w": null, "switching_capacity_gbps": null, "note": "支持中继功能" },
+      { "model": "POE204D", "series": "POE经典", "ports": 6, "poe_ports": 4, "speed": "百兆", "management": "非管理", "fanless": null, "poe_budget_w": null, "switching_capacity_gbps": null, "note": "4+2上联，双上联" },
+      { "model": "POE206D", "series": "POE经典", "ports": 8, "poe_ports": 6, "speed": "百兆", "management": "非管理", "fanless": null, "poe_budget_w": null, "switching_capacity_gbps": null, "note": "6+2上联，6口经典款" },
+      { "model": "POE208D", "series": "POE经典", "ports": 10, "poe_ports": 8, "speed": "百兆", "management": "非管理", "fanless": null, "poe_budget_w": null, "switching_capacity_gbps": null, "note": "8+2上联，8口热销" },
+      { "model": "POE208G", "series": "POE经典", "ports": 10, "poe_ports": 8, "speed": "百+千", "management": "非管理", "fanless": null, "poe_budget_w": null, "switching_capacity_gbps": null, "note": "8+2上联，千兆" },
+      { "model": "POE216G", "series": "POE经典", "ports": 18, "poe_ports": 16, "speed": "百+千", "management": "非管理", "fanless": null, "poe_budget_w": null, "switching_capacity_gbps": null, "note": "16+2上联" },
+      { "model": "POE308G", "series": "POE经典", "ports": 8, "poe_ports": 8, "speed": "百+千", "management": "非管理", "fanless": null, "poe_budget_w": null, "switching_capacity_gbps": null, "note": "全千兆8口" },
+      { "model": "POE316G", "series": "POE经典", "ports": 16, "poe_ports": 16, "speed": "百+千", "management": "非管理", "fanless": null, "poe_budget_w": null, "switching_capacity_gbps": null, "note": "全千兆16口" },
+      { "model": "POE424G", "series": "POE经典", "ports": 24, "poe_ports": 24, "speed": "", "management": "非管理", "fanless": null, "poe_budget_w": null, "switching_capacity_gbps": null, "note": "旗舰24口" },
+      { "model": "POE103S", "series": "POE经典", "ports": 3, "poe_ports": 3, "speed": "百兆", "management": "非管理", "fanless": null, "poe_budget_w": null, "switching_capacity_gbps": null, "note": "中继交换机" },
+      { "model": "POE204E", "series": "POE经典", "ports": 6, "poe_ports": 4, "speed": "百兆", "management": "非管理", "fanless": null, "poe_budget_w": null, "switching_capacity_gbps": null, "note": "4+2上联，外置电源" }
+    ],
+
+    "GPOE系列": [
+      { "model": "GPOE204", "series": "GPOE千兆", "ports": 6, "poe_ports": 4, "speed": "全千兆", "management": "非管理", "fanless": null, "poe_budget_w": null, "switching_capacity_gbps": null, "note": "4+2上联" },
+      { "model": "GPOE208", "series": "GPOE千兆", "ports": 10, "poe_ports": 8, "speed": "全千兆", "management": "非管理", "fanless": null, "poe_budget_w": null, "switching_capacity_gbps": null, "note": "8+2上联" },
+      { "model": "GPOE216", "series": "GPOE千兆", "ports": 18, "poe_ports": 16, "speed": "全千兆", "management": "非管理", "fanless": null, "poe_budget_w": null, "switching_capacity_gbps": null, "note": "16+2上联" },
+      { "model": "GPOE224", "series": "GPOE千兆", "ports": 26, "poe_ports": 24, "speed": "全千兆", "management": "非管理", "fanless": null, "poe_budget_w": null, "switching_capacity_gbps": null, "note": "24+2上联" },
+      { "model": "GPOE316", "series": "GPOE千兆", "ports": 16, "poe_ports": 16, "speed": "全千兆", "management": "非管理", "fanless": null, "poe_budget_w": null, "switching_capacity_gbps": null, "note": "全千兆16口" },
+      { "model": "GPOE404", "series": "GPOE千兆", "ports": 4, "poe_ports": 4, "speed": "全千兆", "management": "非管理", "fanless": null, "poe_budget_w": null, "switching_capacity_gbps": null, "note": "2.5G高速POE" },
+      { "model": "GPOE408", "series": "GPOE千兆", "ports": 8, "poe_ports": 8, "speed": "全千兆", "management": "非管理", "fanless": null, "poe_budget_w": null, "switching_capacity_gbps": null, "note": "2.5G高速POE" },
+      { "model": "GPOE424", "series": "GPOE千兆", "ports": 24, "poe_ports": 24, "speed": "全千兆", "management": "非管理", "fanless": null, "poe_budget_w": null, "switching_capacity_gbps": null, "note": "千兆24口" }
+    ],
+
+    "非供电非管理系列": [
+      { "model": "I105", "series": "工业级", "ports": 5, "poe_ports": 0, "speed": "百兆", "management": "非管理", "fanless": null, "poe_budget_w": 0, "switching_capacity_gbps": null, "note": "工业环境交换机" },
+      { "model": "IG108", "series": "2.5G高速", "ports": 8, "poe_ports": 0, "speed": "2.5G", "management": "非管理", "fanless": null, "poe_budget_w": 0, "switching_capacity_gbps": null, "note": "8口2.5G" },
+      { "model": "IG204", "series": "2.5G高速", "ports": 4, "poe_ports": 0, "speed": "2.5G", "management": "非管理", "fanless": null, "poe_budget_w": 0, "switching_capacity_gbps": null, "note": "4口2.5G" },
+      { "model": "SG106", "series": "千兆基础", "ports": 6, "poe_ports": 0, "speed": "千兆", "management": "非管理", "fanless": null, "poe_budget_w": 0, "switching_capacity_gbps": null, "note": "6口千兆" },
+      { "model": "26S01", "series": "管理型", "ports": 26, "poe_ports": 0, "speed": null, "management": "轻管理", "fanless": null, "poe_budget_w": 0, "switching_capacity_gbps": null, "note": "26口管理型" },
+      { "model": "TFS106", "series": "2.5G管理", "ports": 6, "poe_ports": 0, "speed": "2.5G", "management": "轻管理", "fanless": null, "poe_budget_w": 0, "switching_capacity_gbps": null, "note": "6口2.5G管理" },
+      { "model": "TFS109", "series": "2.5G管理", "ports": 9, "poe_ports": 0, "speed": "2.5G", "management": "轻管理", "fanless": null, "poe_budget_w": 0, "switching_capacity_gbps": null, "note": "9口2.5G管理" },
+      { "model": "SOF21G", "series": "千兆分线器", "ports": 3, "poe_ports": 0, "speed": "千兆", "management": "非管理", "fanless": true, "poe_budget_w": 0, "switching_capacity_gbps": null, "note": "1分2千兆分线器" },
+      { "model": "SOF22G", "series": "千兆分线器", "ports": 3, "poe_ports": 0, "speed": "千兆", "management": "非管理", "fanless": true, "poe_budget_w": 0, "switching_capacity_gbps": null, "note": "1分2千兆分线器" },
+      { "model": "SFP101P", "series": "光口转换", "ports": 1, "poe_ports": 0, "speed": "千兆", "management": "非管理", "fanless": true, "poe_budget_w": 0, "switching_capacity_gbps": null, "note": "SFP转电口" }
+    ],
+
+    "SPOE系列": [
+      { "model": "SPOE103S", "series": "SPOE中继", "ports": 3, "poe_ports": 3, "speed": "百兆", "management": "非管理", "fanless": null, "poe_budget_w": null, "switching_capacity_gbps": null, "note": "3口简易POE中继" },
+      { "model": "SPOE103SM", "series": "SPOE中继", "ports": 3, "poe_ports": 3, "speed": "百兆", "management": "非管理", "fanless": null, "poe_budget_w": null, "switching_capacity_gbps": null, "note": "3口POE中继增强版" },
+      { "model": "SPOE108C", "series": "SPOE交换机", "ports": 8, "poe_ports": 8, "speed": "百兆", "management": "非管理", "fanless": null, "poe_budget_w": null, "switching_capacity_gbps": null, "note": "8口样品" }
+    ],
+
+    "外置电源AI系列": [
+      { "model": "POE105D", "series": "外置电源AI", "ports": 5, "poe_ports": 4, "speed": "百兆", "management": "非管理", "fanless": null, "poe_budget_w": null, "switching_capacity_gbps": null, "note": "5口AI兼容,外置电源", "alias": "外电POE105D" },
+      { "model": "POE106D", "series": "外置电源AI", "ports": 6, "poe_ports": 6, "speed": "百兆", "management": "非管理", "fanless": null, "poe_budget_w": null, "switching_capacity_gbps": null, "note": "6口AI兼容,外置电源", "alias": "外电POE106D" },
+      { "model": "POE106P", "series": "外置电源AI", "ports": 6, "poe_ports": 6, "speed": "百兆", "management": "非管理", "fanless": null, "poe_budget_w": null, "switching_capacity_gbps": null, "note": "6口AI兼容,网口朝下", "alias": "外电POE106P" },
+      { "model": "POE108DL", "series": "外置电源AI", "ports": 8, "poe_ports": 8, "speed": "百兆", "management": "非管理", "fanless": null, "poe_budget_w": null, "switching_capacity_gbps": null, "note": "8口AI兼容新版", "alias": "外电POE108DL" },
+      { "model": "POE110DL", "series": "外置电源AI", "ports": 10, "poe_ports": 10, "speed": "百兆", "management": "非管理", "fanless": null, "poe_budget_w": null, "switching_capacity_gbps": null, "note": "10口AI兼容新版", "alias": "外电POE110DL" }
+    ]
+  },
+
+  "camera": [
+    { "model": "C223W", "type": "卡片机", "connectivity": "WIFI", "features": "室内卡片机", "resolution": null, "night_vision": null, "ptz": false },
+    { "model": "C233W", "type": "球机", "connectivity": "WIFI", "features": "室内WIFI球机", "resolution": null, "night_vision": null, "ptz": true },
+    { "model": "C334G", "type": "球机", "connectivity": "4G", "features": "AOV黑光全彩", "resolution": null, "night_vision": "AOV黑光", "ptz": true },
+    { "model": "IBG311", "type": "枪机", "connectivity": "电池WIFI", "features": "无线电池摄像机", "resolution": null, "night_vision": null, "ptz": false },
+    { "model": "IBG322", "type": "球机", "connectivity": null, "features": "球机系列", "resolution": null, "night_vision": null, "ptz": true },
+    { "model": "IBZ472", "type": "球机", "connectivity": "4G", "features": "AOV黑光全彩4G球机", "resolution": null, "night_vision": "AOV黑光", "ptz": true },
+    { "model": "IZ601", "type": "双目摄像机", "connectivity": "4G", "features": "智能双目4G", "resolution": null, "night_vision": null, "ptz": false, "note": "双目" }
+  ],
+
+  "accessory": {
+    "poe_injector": [
+      { "model": "POE5215DG", "power_w": 15, "form": "桌面式", "standard": "802.3af", "usage": "标准POE供电" },
+      { "model": "POE5215GC", "power_w": 15, "form": "墙插式", "standard": "802.3af", "usage": "标准POE供电" },
+      { "model": "POE5511", "power_w": 60, "form": "桌面式", "standard": "非标大功率", "usage": "大功率非标供电" },
+      { "model": "P012W4800250", "power_w": 12, "form": "桌面式", "standard": null, "usage": "小功率供电" },
+      { "model": "P012W4800300", "power_w": 12, "form": "桌面式", "standard": null, "usage": "小功率供电" },
+      { "model": "P015W4800", "power_w": 15, "form": "墙插/桌面", "standard": "802.3af", "usage": "标准功率供电" },
+      { "model": "P024WD", "power_w": 24, "form": "桌面式", "standard": null, "usage": "中功率供电" }
+    ],
+    "pd_splitter": [
+      { "model": "P6611", "type": "POE分线器" },
+      { "model": "P6612", "type": "POE分线器" },
+      { "model": "P6701", "type": "POE分线器" },
+      { "model": "P6911", "type": "POE分线器" },
+      { "model": "P6401L", "type": "POE尾线" },
+      { "model": "P6501L", "type": "POE尾线" },
+      { "model": "P3501", "type": "PD受电模块" },
+      { "model": "P3511", "type": "PD受电模块" },
+      { "model": "IPS110", "type": "POE延长中继器" },
+      { "model": "C2112", "type": "合分器" },
+      { "model": "SD5115", "type": "DC-DC芯片" }
+    ]
+  }
+}
