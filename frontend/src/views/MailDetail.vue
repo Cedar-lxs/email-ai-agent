@@ -71,12 +71,78 @@
       </el-row>
 
       <!-- 知识依据和操作 -->
+      <el-card v-if="hasMultimodalData" class="multimodal-card">
+        <template #header>
+          <div class="card-header">
+            <span class="section-index">03</span>
+            <h3>图片与视频识别</h3>
+            <small>{{ multimodal.confidence !== undefined ? `置信度 ${Math.round((multimodal.confidence || 0) * 100)}%` : '待审核参考' }}</small>
+          </div>
+        </template>
+
+        <el-alert
+          v-if="multimodal.risk_signals && multimodal.risk_signals.length"
+          title="识别到风险信号，建议人工复核"
+          type="warning"
+          :closable="false"
+          style="margin-bottom: 16px"
+        />
+
+        <el-alert
+          v-if="multimodal.errors && multimodal.errors.length"
+          :title="multimodal.errors.join('；')"
+          type="info"
+          :closable="false"
+          style="margin-bottom: 16px"
+        />
+
+        <div class="multimodal-grid">
+          <div class="visual-summary">
+            <p class="visual-summary-text">{{ multimodal.summary || '暂无识别摘要' }}</p>
+            <div class="signal-groups">
+              <div v-for="group in visualGroups" :key="group.label" class="signal-group">
+                <span>{{ group.label }}</span>
+                <div>
+                  <el-tag
+                    v-for="item in group.items"
+                    :key="item"
+                    :type="group.type"
+                    size="small"
+                  >
+                    {{ item }}
+                  </el-tag>
+                  <small v-if="!group.items.length">暂无</small>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div v-if="media.length" class="media-list">
+            <div v-for="item in media" :key="item.media_id" class="media-item">
+              <img
+                v-if="isPreviewImage(item)"
+                :src="mediaPreviewUrl(item)"
+                :alt="item.filename"
+                class="media-preview"
+              />
+              <div v-else class="media-file">
+                <el-icon><VideoCamera /></el-icon>
+              </div>
+              <div class="media-meta">
+                <strong>{{ item.filename }}</strong>
+                <small>{{ mediaLabel(item) }} · {{ formatSize(item.size_bytes) }}</small>
+              </div>
+            </div>
+          </div>
+        </div>
+      </el-card>
+
       <el-row :gutter="20" class="action-row">
         <el-col :xs="24" :lg="16">
           <el-card class="evidence-card">
             <template #header>
               <div class="card-header">
-                <span class="section-index">03</span>
+                <span class="section-index">{{ hasMultimodalData ? '04' : '03' }}</span>
                 <h3>知识依据</h3>
                 <small>{{ retrieval.mode === 'web_search_fallback' ? '本地知识不足时采用的外部通用参考' : '本地知识置信度阈值 ≥ 65%' }}</small>
               </div>
@@ -116,7 +182,7 @@
           <el-card class="action-card">
             <template #header>
               <div class="card-header">
-                <span class="section-index">04</span>
+                <span class="section-index">{{ hasMultimodalData ? '05' : '04' }}</span>
                 <h3>审核操作</h3>
               </div>
             </template>
@@ -183,7 +249,8 @@ import {
   DocumentChecked,
   Select,
   Close,
-  Delete
+  Delete,
+  VideoCamera
 } from '@element-plus/icons-vue'
 import { mailApi } from '@/api/mail'
 
@@ -199,11 +266,29 @@ const mail = ref(null)
 const draftBody = ref('')
 const rejectReason = ref('')
 const retrieval = ref({})
+const media = ref([])
+const multimodal = ref({})
 
 const replySubject = computed(() => {
   if (!mail.value) return ''
   const subject = mail.value.subject || ''
   return subject.startsWith('Re:') ? subject : `Re: ${subject}`
+})
+
+const hasMultimodalData = computed(() => {
+  return media.value.length > 0 || Object.keys(multimodal.value || {}).length > 0
+})
+
+const visualGroups = computed(() => {
+  const data = multimodal.value || {}
+  return [
+    { label: '型号/文字', items: [...(data.product_identifiers || []), ...(data.visible_text || [])], type: 'success' },
+    { label: '故障信号', items: data.fault_signals || [], type: 'warning' },
+    { label: '连接状态', items: data.connection_state || [], type: 'info' },
+    { label: '指示灯', items: data.indicator_state || [], type: 'info' },
+    { label: '风险信号', items: data.risk_signals || [], type: 'danger' },
+    { label: '需补充', items: data.needed_information || [], type: '' }
+  ]
 })
 
 const statusLabels = {
@@ -258,6 +343,8 @@ const loadDetail = async () => {
     mail.value = data.mail
     draftBody.value = data.draft_body || ''
     retrieval.value = data.retrieval || {}
+    media.value = data.media || []
+    multimodal.value = data.multimodal || {}
   } catch (error) {
     console.error('加载邮件详情失败:', error)
     if (error?.response?.status === 404) router.replace('/mails')
@@ -335,6 +422,29 @@ const goBack = () => {
   router.back()
 }
 
+const isPreviewImage = (item) => {
+  return String(item.content_type || '').startsWith('image/')
+}
+
+const mediaPreviewUrl = (item) => {
+  return mailApi.mediaUrl(mail.value?.message_id, item.media_id)
+}
+
+const mediaLabel = (item) => {
+  if (item.source === 'video_frame') return '视频关键帧'
+  if (item.source === 'inline_cid') return '正文内嵌图片'
+  if (item.source === 'inline_data') return 'HTML 内嵌图片'
+  if (String(item.content_type || '').startsWith('video/')) return '视频附件'
+  return '图片附件'
+}
+
+const formatSize = (size) => {
+  const value = Number(size || 0)
+  if (value >= 1024 * 1024) return `${(value / 1024 / 1024).toFixed(1)} MB`
+  if (value >= 1024) return `${(value / 1024).toFixed(1)} KB`
+  return `${value} B`
+}
+
 onMounted(() => {
   loadDetail()
 })
@@ -374,6 +484,95 @@ onMounted(() => {
 
 .comparison-row {
   margin-bottom: 20px;
+}
+
+.multimodal-card {
+  margin-bottom: 20px;
+}
+
+.multimodal-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 420px);
+  gap: 20px;
+}
+
+.visual-summary-text {
+  margin: 0 0 16px;
+  color: #182230;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+.signal-groups {
+  display: grid;
+  gap: 12px;
+}
+
+.signal-group {
+  display: grid;
+  grid-template-columns: 88px minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+}
+
+.signal-group > span {
+  color: #65758b;
+  font-size: 13px;
+}
+
+.signal-group div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.signal-group small {
+  color: #98a2b3;
+}
+
+.media-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 12px;
+}
+
+.media-item {
+  border: 1px solid #edf0f4;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #fafbfd;
+}
+
+.media-preview,
+.media-file {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  background: #eef2f7;
+}
+
+.media-file {
+  display: grid;
+  place-items: center;
+  color: #65758b;
+  font-size: 32px;
+}
+
+.media-meta {
+  padding: 10px;
+}
+
+.media-meta strong {
+  display: block;
+  font-size: 13px;
+  color: #182230;
+  overflow-wrap: anywhere;
+}
+
+.media-meta small {
+  display: block;
+  margin-top: 4px;
+  color: #65758b;
 }
 
 .comparison-card {
@@ -482,6 +681,8 @@ onMounted(() => {
   .mail-body, .draft-editor :deep(textarea) { min-height: 280px !important; }
   .card-header { flex-wrap: wrap; }
   .card-header small { width: 100%; margin-left: 40px; overflow-wrap: anywhere; }
+  .multimodal-grid { grid-template-columns: 1fr; }
+  .signal-group { grid-template-columns: 1fr; gap: 6px; }
   .action-card { position: static; }
 }
 </style>

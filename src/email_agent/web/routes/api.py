@@ -120,9 +120,15 @@ def get_mail_detail(message_id):
 
 
 @bp.get("/mails/<path:message_id>/media/<media_id>")
-@token_required
 def get_mail_media(message_id, media_id):
     """Serve stored mail media listed in the DB manifest."""
+    token = ""
+    auth_header = request.headers.get("Authorization")
+    if auth_header and auth_header.startswith("Bearer "):
+        token = auth_header[7:]
+    token = token or request.args.get("token", "")
+    if not AuthManager.verify_token(token):
+        return jsonify({"error": "认证令牌无效或已过期"}), 401
     agent = current_app.extensions["services"].agent
     mail = agent.db.get_email(message_id)
     if not mail:
