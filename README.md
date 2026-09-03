@@ -12,6 +12,7 @@
 - AI 意图分类、摘要、关键词、情绪、紧急程度和人工介入判断。
 - 区分技术问题与订单、报价、物流、退款等业务问题。
 - 从本地知识文件中检索型号、中文术语和技术说明。
+- 可选 DeepSeek 多模态识别，结合附件图片、正文内嵌图片和视频关键帧辅助判断售后问题。
 - 半自动模式下生成草稿，等待人工编辑和批准。
 - 全自动模式下仅允许配置中的低风险技术类型直接回复。
 - SMTP 发送失败时保留草稿状态，便于稍后重试。
@@ -26,8 +27,9 @@
 - 业务问题、高风险操作、信息不足和无法确定的问题转人工处理。
 - 系统不会自动承诺退款、赔偿、费用或未经确认的处理时效。
 - 涉及升级、重置、清除数据、断电拆机或安全风险时应由人工复核。
+- 多模态识别发现烧毁、进水、裸线、拆机、电源异常等风险信号时转人工处理。
 - Web 服务仅监听 `127.0.0.1:8765`，默认不向局域网或公网开放。
-- 邮箱密码和 AI API Key 应存放在 `.env` 或系统环境变量中，不要写入源码或提交到版本库。
+- 邮箱密码、AI API Key 和多模态 API Key 应存放在 `.env` 或系统环境变量中，不要写入源码或提交到版本库。
 
 ## 运行环境
 
@@ -66,6 +68,7 @@ AI_API_KEY=your-ai-api-key
 EMBEDDING_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
 EMBEDDING_API_KEY=your-dashscope-api-key
 EMBEDDING_MODEL=text-embedding-v3
+MULTIMODAL_API_KEY=your-deepseek-vision-api-key
 ```
 
 `MAIL_PASSWORD` 应使用邮箱服务商生成的客户端专用密码，而不是网页登录密码。
@@ -85,6 +88,7 @@ $env:AI_API_KEY="your-ai-api-key"
 - `mail`：IMAP/SMTP 地址、端口和轮询间隔。
 - `ai`：模型提供商、API 地址、模型名称和生成参数。
 - `rag`：检索模式、返回数量和切块参数。
+- `multimodal`：DeepSeek 图片识别、媒体数量限制、图片/视频大小限制和视频关键帧数量。
 - `workflow`：半自动或全自动模式、草稿目录和自动回复类型。
 - `database`：SQLite 数据库路径。
 - `processing.max_concurrent`：同时处理的邮件数量，默认值为 `3`。
@@ -111,6 +115,18 @@ processing:
 ```
 
 `hybrid` 已内置 BM25、型号精确召回、DashScope 向量召回、RRF 融合和 CPU 本地重排。Embedding 不可用时自动降级为 BM25，低置信度结果转人工。使用可直接调用百炼 API 的 `EMBEDDING_API_KEY` 后运行 `python main.py rag-build` 构建增量向量索引。
+
+DeepSeek 多模态默认关闭。确认 API Key、费用和人工审核流程后，可启用：
+
+```yaml
+multimodal:
+  enabled: true
+  provider: "deepseek"
+  api_base: "https://api.deepseek.com"
+  model: "deepseek-v4-flash-vision-exp"
+```
+
+`MULTIMODAL_API_KEY` 为空时会复用 `AI_API_KEY`。当前版本支持图片附件、视频附件关键帧、`cid:` 正文内嵌图片和 HTML base64 图片；不会主动下载公网图片 URL。视频不会直接上传给 DeepSeek，而是抽取少量关键帧作为图片分析。多模态识别失败时，半自动模式仍会生成待审核草稿并记录错误；全自动模式下如果邮件含媒体且识别失败，不会直接发送。
 
 ### 4. 检查邮箱连接
 
@@ -287,6 +303,8 @@ email-ai-agent/
 │  │  ├─ database.py               # SQLite
 │  │  ├─ mail_fetcher.py           # IMAP
 │  │  ├─ mail_sender.py            # SMTP 与草稿文件
+│  │  ├─ media_storage.py          # 邮件图片、视频和关键帧本地存储
+│  │  ├─ multimodal.py             # DeepSeek 多模态识别
 │  │  ├─ llm.py                    # AI API
 │  │  └─ knowledge/
 │  │     ├─ loaders.py             # 文档加载
@@ -312,6 +330,7 @@ email-ai-agent/
 - SQLite 数据库：`data/emails.db`
 - 草稿目录：`drafts/`
 - 知识目录：`knowledge/`
+- 多模态媒体目录：`data/media/`
 
 常见邮件状态：
 
@@ -326,6 +345,8 @@ email-ai-agent/
 | `skipped_self` | 发件人为自身账号，已跳过 |
 
 SQLite 使用现有 schema 和数据文件，不需要执行破坏性迁移。
+
+多模态媒体清单保存在 `processed_emails.media_manifest`，识别结果保存在 `processed_emails.multimodal_trace`。这些数据用于审核追溯和 Web 详情页展示，不会写入知识库索引。
 
 ## 运行测试
 
@@ -345,6 +366,7 @@ python -m compileall -q src main.py web_app.py tests
 
 - IMAP/LLM 异步调用、无控制台后台运行和邮件并发上限；
 - 关键词、向量、混合检索和来源信息；
+- 图片附件、正文内嵌图片、视频关键帧、多模态识别结果和 Web 审核展示；
 - 中文型号和技术术语；
 - 知识文件上传、删除和失败回滚；
 - 草稿编辑、批准和 SMTP 失败保留；
