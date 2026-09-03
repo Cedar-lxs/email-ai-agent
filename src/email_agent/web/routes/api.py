@@ -1,7 +1,7 @@
 """API 路由：认证和邮件管理。"""
 from pathlib import Path
 
-from flask import Blueprint, current_app, request, jsonify
+from flask import Blueprint, current_app, request, jsonify, send_file
 from email_agent.web.auth import AuthManager, token_required, get_current_user
 
 bp = Blueprint("api", __name__, url_prefix="/api")
@@ -105,14 +105,37 @@ def get_mail_detail(message_id):
 
     draft_body = review.draft_body(mail)
     retrieval = agent.db.parse_retrieval_trace(mail)
+    media = agent.db.parse_media_manifest(mail)
+    multimodal = agent.db.parse_multimodal_trace(mail)
     reply_subject = agent.sender.build_reply_subject(mail["subject"])
 
     return jsonify({
         "mail": dict(mail),
         "draft_body": draft_body,
         "retrieval": retrieval,
+        "media": media,
+        "multimodal": multimodal,
         "reply_subject": reply_subject
     })
+
+
+@bp.get("/mails/<path:message_id>/media/<media_id>")
+@token_required
+def get_mail_media(message_id, media_id):
+    """Serve stored mail media listed in the DB manifest."""
+    agent = current_app.extensions["services"].agent
+    mail = agent.db.get_email(message_id)
+    if not mail:
+        return jsonify({"error": "邮件不存在"}), 404
+    manifest = agent.db.parse_media_manifest(mail)
+    record = next((item for item in manifest if item.get("media_id") == media_id), None)
+    if not record:
+        return jsonify({"error": "媒体文件不存在"}), 404
+    path = Path(record.get("path", "")).resolve()
+    media_root = Path(getattr(agent, "media_root", Path("data") / "media")).resolve()
+    if media_root not in path.parents or not path.is_file():
+        return jsonify({"error": "媒体文件不可访问"}), 404
+    return send_file(path, mimetype=record.get("content_type") or None)
 
 
 @bp.post("/mails/<path:message_id>/save")

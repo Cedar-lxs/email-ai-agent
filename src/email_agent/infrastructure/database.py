@@ -33,7 +33,9 @@ class EmailDB:
                 in_reply_to TEXT,
                 last_error TEXT,
                 retry_count INTEGER DEFAULT 0,
-                retrieval_trace TEXT DEFAULT ''
+                retrieval_trace TEXT DEFAULT '',
+                media_manifest TEXT DEFAULT '',
+                multimodal_trace TEXT DEFAULT ''
             );
             CREATE TABLE IF NOT EXISTS app_settings (
                 key TEXT PRIMARY KEY,
@@ -54,6 +56,8 @@ class EmailDB:
             "original_body": "TEXT", "draft_path": "TEXT", "in_reply_to": "TEXT",
             "last_error": "TEXT", "retry_count": "INTEGER DEFAULT 0",
             "retrieval_trace": "TEXT DEFAULT ''",
+            "media_manifest": "TEXT DEFAULT ''",
+            "multimodal_trace": "TEXT DEFAULT ''",
         }
         for column, definition in migrations.items():
             if column not in existing:
@@ -253,12 +257,42 @@ class EmailDB:
         )
         self.conn.commit()
 
+    def save_media_manifest(self, message_id: str, manifest: list[dict]):
+        self.conn.execute(
+            "UPDATE processed_emails SET media_manifest=? WHERE message_id=?",
+            (json.dumps(manifest, ensure_ascii=False), message_id),
+        )
+        self.conn.commit()
+
+    def save_multimodal_trace(self, message_id: str, trace: dict):
+        self.conn.execute(
+            "UPDATE processed_emails SET multimodal_trace=? WHERE message_id=?",
+            (json.dumps(trace, ensure_ascii=False), message_id),
+        )
+        self.conn.commit()
+
     @staticmethod
     def parse_retrieval_trace(row) -> dict:
         try:
             return json.loads(row["retrieval_trace"] or "{}")
         except (json.JSONDecodeError, KeyError, TypeError):
             return {}
+
+    @staticmethod
+    def parse_media_manifest(row) -> list[dict]:
+        try:
+            value = json.loads(row["media_manifest"] or "[]")
+        except (json.JSONDecodeError, KeyError, TypeError):
+            return []
+        return value if isinstance(value, list) else []
+
+    @staticmethod
+    def parse_multimodal_trace(row) -> dict:
+        try:
+            value = json.loads(row["multimodal_trace"] or "{}")
+        except (json.JSONDecodeError, KeyError, TypeError):
+            return {}
+        return value if isinstance(value, dict) else {}
 
     def save_conversation(self, sender_email: str, message_id: str,
                           role: str, content: str):
