@@ -1,5 +1,6 @@
 """邮件 Agent：收件、技术分类、知识检索、草稿审核与发送。"""
 import asyncio
+from dataclasses import asdict
 import re
 import subprocess
 import sys
@@ -14,6 +15,8 @@ from email_agent.infrastructure.knowledge.factory import create_retriever
 from email_agent.infrastructure.llm import AIProcessor
 from email_agent.infrastructure.mail_fetcher import MailFetcher
 from email_agent.infrastructure.mail_sender import MailSender
+from email_agent.infrastructure.media_storage import MediaStorage
+from email_agent.infrastructure.multimodal import MultimodalAnalyzer, format_multimodal_context
 from email_agent.infrastructure.web_search import BochaWebSearchClient
 from email_agent.paths import get_project_paths, resolve_from_root
 from email_agent.application.review_service import ReviewService
@@ -58,6 +61,11 @@ class EmailAgent:
         self.review = ReviewService(self.db, self.sender, draft_path)
         self.web_search = BochaWebSearchClient(self.config.get("web_search", {}))
         self.web_search_config = self.config.get("web_search", {})
+        self.media_root = paths.data / "media"
+        self.media_storage = MediaStorage(
+            self.media_root, self.config.get("multimodal", {})
+        )
+        self.multimodal_analyzer = MultimodalAnalyzer(self.config)
 
         # 并发处理配置
         self.max_concurrent = int(self.config.get("processing", {}).get("max_concurrent", 3))
@@ -160,10 +168,22 @@ class EmailAgent:
             f"[{email.subject}]\n{email.body_text[:2000]}",
         )
 
+        multimodal_observation, multimodal_context, media_count = (
+            await self._prepare_multimodal_async(email)
+        )
+
         if self._needs_human(intent, f"{email.subject}\n{email.body_text}"):
             self.db.update_status(email.message_id, "escalated", notes="业务或高风险问题")
             _safe_print("已转人工处理")
             self.logger.info(f"邮件 {email.message_id} 已转人工: 业务或高风险问题")
+            return True
+        if self._visual_requires_human(multimodal_observation, media_count):
+            self.db.update_status(
+                email.message_id, "escalated",
+                notes="多模态识别发现高风险或低置信度关键信息，已转人工"
+            )
+            _safe_print("多模态识别发现高风险，已转人工处理")
+            self.logger.info(f"邮件 {email.message_id} 多模态高风险，已转人工")
             return True
 
         # 异步翻译
@@ -183,13 +203,13 @@ class EmailAgent:
         retrieval_query = RetrievalQuery(
             text=translated["body"],
             subject=translated["subject"],
-            summary="",
+            summary=multimodal_observation.summary if multimodal_observation else "",
             intent=intent.intent,
-            keywords=tuple(translated["keywords"]),
-            identifiers=tuple(self.kb.store._identifiers(
+            keywords=tuple(translated["keywords"] + self._build_multimodal_retrieval_terms(multimodal_observation)),
+            identifiers=tuple(dict.fromkeys(self.kb.store._identifiers(
                 f"{email.subject}\n{email.body_text}\n{translated['subject']}\n"
                 f"{translated['body']}\n{' '.join(translated['keywords'])}"
-            )),
+            ) + self._build_multimodal_identifiers(multimodal_observation))),
         )
         hits = self.retriever.retrieve(retrieval_query, self.top_k)
         evidence_threshold = float(self.config.get("rag", {}).get("min_confidence", 0.75))
@@ -229,7 +249,8 @@ class EmailAgent:
         try:
             reply = await self._retry_async(
                 lambda: self.ai.generate_reply_async(
-                    email.subject, email.body_text, intent, knowledge, history
+                    email.subject, email.body_text, intent, knowledge,
+                    history=history, multimodal_context=multimodal_context
                 ), "AI 回复生成"
             )
         except Exception as exc:
@@ -241,7 +262,9 @@ class EmailAgent:
             return True
 
         allowed = intent.intent in self.config["workflow"]["auto_reply_types"]
-        can_auto_send = self._can_auto_send(allowed, used_web_search)
+        can_auto_send = self._can_auto_send(
+            allowed, used_web_search, media_count, multimodal_observation
+        )
         if can_auto_send:
             sent = await asyncio.to_thread(
                 self.sender.send_reply,
@@ -304,10 +327,22 @@ class EmailAgent:
             f"[{email.subject}]\n{email.body_text[:2000]}",
         )
 
+        multimodal_observation, multimodal_context, media_count = (
+            self._prepare_multimodal(email)
+        )
+
         if self._needs_human(intent, f"{email.subject}\n{email.body_text}"):
             self.db.update_status(email.message_id, "escalated", notes="业务或高风险问题")
             _safe_print("已转人工处理")
             self.logger.info(f"邮件 {email.message_id} 已转人工")
+            return True
+        if self._visual_requires_human(multimodal_observation, media_count):
+            self.db.update_status(
+                email.message_id, "escalated",
+                notes="多模态识别发现高风险或低置信度关键信息，已转人工"
+            )
+            _safe_print("多模态识别发现高风险，已转人工处理")
+            self.logger.info(f"邮件 {email.message_id} 多模态高风险，已转人工")
             return True
 
         try:
@@ -326,13 +361,13 @@ class EmailAgent:
         retrieval_query = RetrievalQuery(
             text=translated["body"],
             subject=translated["subject"],
-            summary="",
+            summary=multimodal_observation.summary if multimodal_observation else "",
             intent=intent.intent,
-            keywords=tuple(translated["keywords"]),
-            identifiers=tuple(self.kb.store._identifiers(
+            keywords=tuple(translated["keywords"] + self._build_multimodal_retrieval_terms(multimodal_observation)),
+            identifiers=tuple(dict.fromkeys(self.kb.store._identifiers(
                 f"{email.subject}\n{email.body_text}\n{translated['subject']}\n"
                 f"{translated['body']}\n{' '.join(translated['keywords'])}"
-            )),
+            ) + self._build_multimodal_identifiers(multimodal_observation))),
         )
         hits = self.retriever.retrieve(retrieval_query, self.top_k)
         evidence_threshold = float(self.config.get("rag", {}).get("min_confidence", 0.75))
@@ -369,7 +404,8 @@ class EmailAgent:
         try:
             reply = self._retry(
                 lambda: self.ai.generate_reply(
-                    email.subject, email.body_text, intent, knowledge, history
+                    email.subject, email.body_text, intent, knowledge,
+                    history=history, multimodal_context=multimodal_context
                 ), "AI 回复生成"
             )
         except Exception as exc:
@@ -381,7 +417,9 @@ class EmailAgent:
             return True
 
         allowed = intent.intent in self.config["workflow"]["auto_reply_types"]
-        can_auto_send = self._can_auto_send(allowed, used_web_search)
+        can_auto_send = self._can_auto_send(
+            allowed, used_web_search, media_count, multimodal_observation
+        )
         if can_auto_send:
             if not self.sender.send_reply(
                 email.sender, email.subject, reply, email.message_id
@@ -525,8 +563,88 @@ class EmailAgent:
             "degraded_reason": "本地知识不足，使用博查通用技术参考", "hits": hits,
         }
 
-    def _can_auto_send(self, allowed: bool, used_web_search: bool) -> bool:
+    def _multimodal_enabled(self) -> bool:
+        return bool(self.config.get("multimodal", {}).get("enabled", False))
+
+    async def _prepare_multimodal_async(self, email):
+        if not self._multimodal_enabled() or not getattr(email, "media", []):
+            return None, "", 0
+        stored, storage_errors = self.media_storage.save(email.message_id, email.media)
+        manifest = self.media_storage.manifest(stored)
+        self.db.save_media_manifest(email.message_id, manifest)
+        observation = await self.multimodal_analyzer.analyze_async(
+            email.subject, email.body_text, stored
+        )
+        if storage_errors:
+            observation.errors.extend(storage_errors)
+        trace = self._multimodal_trace(observation)
+        self.db.save_multimodal_trace(email.message_id, trace)
+        return observation, format_multimodal_context(observation), len(stored)
+
+    def _prepare_multimodal(self, email):
+        if not self._multimodal_enabled() or not getattr(email, "media", []):
+            return None, "", 0
+        stored, storage_errors = self.media_storage.save(email.message_id, email.media)
+        manifest = self.media_storage.manifest(stored)
+        self.db.save_media_manifest(email.message_id, manifest)
+        observation = self.multimodal_analyzer.analyze(
+            email.subject, email.body_text, stored
+        )
+        if storage_errors:
+            observation.errors.extend(storage_errors)
+        trace = self._multimodal_trace(observation)
+        self.db.save_multimodal_trace(email.message_id, trace)
+        return observation, format_multimodal_context(observation), len(stored)
+
+    @staticmethod
+    def _multimodal_trace(observation) -> dict:
+        if not observation:
+            return {}
+        return asdict(observation)
+
+    @staticmethod
+    def _build_multimodal_retrieval_terms(observation) -> list[str]:
+        if not observation:
+            return []
+        terms = []
+        for field in ("product_identifiers", "fault_signals", "connection_state",
+                      "indicator_state", "visible_text"):
+            terms.extend(getattr(observation, field, []) or [])
+        if observation.summary:
+            terms.append(observation.summary)
+        return list(dict.fromkeys(str(term).strip() for term in terms if str(term).strip()))
+
+    @staticmethod
+    def _build_multimodal_identifiers(observation) -> list[str]:
+        if not observation:
+            return []
+        return [str(value).lower() for value in observation.product_identifiers if str(value).strip()]
+
+    @staticmethod
+    def _visual_requires_human(observation, media_count: int = 0) -> bool:
+        if not observation:
+            return False
+        risk_text = " ".join(observation.risk_signals).lower()
+        high_risk_terms = (
+            "smoke", "burn", "burnt", "melt", "fire", "water", "liquid",
+            "corrosion", "exposed", "wiring", "disassembly", "open casing",
+            "pcb", "firmware", "factory reset", "data deletion", "voltage",
+            "poe power", "冒烟", "烧", "烧毁", "熔化", "进水", "液体", "腐蚀",
+            "裸线", "拆机", "开壳", "电路板", "固件", "恢复出厂", "数据删除",
+            "电压", "供电",
+        )
+        if any(term in risk_text for term in high_risk_terms):
+            return True
+        return False
+
+    def _can_auto_send(self, allowed: bool, used_web_search: bool, media_count: int = 0,
+                       multimodal_observation=None) -> bool:
         if not allowed or self.mode != "full_auto":
+            return False
+        if media_count and (
+            self._visual_requires_human(multimodal_observation, media_count)
+            or bool(getattr(multimodal_observation, "errors", []))
+        ):
             return False
         return not used_web_search or bool(
             self.web_search_config.get("auto_send_low_risk", False)

@@ -76,6 +76,19 @@ web_search:
     - "网络连接"
     - "其他技术问题"
 
+multimodal:
+  # DeepSeek 图片识别；默认关闭，开启后会分析邮件附件和正文内嵌图片
+  enabled: false
+  provider: "deepseek"
+  api_base: "https://api.deepseek.com"
+  model: "deepseek-v4-flash-vision-exp"
+  max_media_per_email: 8
+  max_images_per_request: 8
+  max_image_bytes: 10485760
+  max_video_bytes: 52428800
+  video_frame_count: 3
+  analysis_timeout: 90
+
 workflow:
   # 运行模式: semi_auto(半自动,生成草稿等审核) / full_auto(全自动)
   mode: "semi_auto"
