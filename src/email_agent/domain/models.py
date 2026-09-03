@@ -37,6 +37,7 @@ class StoredMedia:
     source: str
     path: str
     size_bytes: int
+    content_id: str = ""
     derived_from: str = ""
     metadata: dict[str, Any] = field(default_factory=dict)
 
