@@ -4,16 +4,30 @@ IMAP 模块：连接阿里企业邮箱，拉取未读邮件并解析
 import asyncio
 import imaplib
 import email
+import base64
 import hashlib
 from email.header import decode_header
 from email.utils import parsedate_to_datetime
 import re
 
-from email_agent.domain.models import ParsedEmail
+from email_agent.domain.models import EmailMedia, ParsedEmail
 
 
 class MailFetcher:
     """阿里企业邮箱 IMAP 客户端"""
+
+    SUPPORTED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/gif", "image/webp"}
+    SUPPORTED_VIDEO_TYPES = {"video/mp4", "video/quicktime", "video/webm", "video/x-msvideo"}
+    MEDIA_EXTENSIONS = {
+        "image/jpeg": ".jpg",
+        "image/png": ".png",
+        "image/gif": ".gif",
+        "image/webp": ".webp",
+        "video/mp4": ".mp4",
+        "video/quicktime": ".mov",
+        "video/webm": ".webm",
+        "video/x-msvideo": ".avi",
+    }
 
     def __init__(self, server: str, port: int, account: str, password: str,
                  timeout: float = 30):
@@ -118,20 +132,28 @@ class MailFetcher:
         # --- 正文 ---
         body_text = ""
         body_html = ""
+        media_items = []
 
         if msg.is_multipart():
             for part in msg.walk():
                 content_type = part.get_content_type()
                 disposition = str(part.get("Content-Disposition", ""))
 
-                # 跳过附件
-                if "attachment" in disposition:
-                    continue
-
                 charset = part.get_content_charset() or "utf-8"
                 payload = part.get_payload(decode=True)
 
                 if not payload:
+                    continue
+
+                extracted = self._media_from_part(
+                    part, payload, len(media_items) + 1
+                )
+                if extracted:
+                    media_items.append(extracted)
+                    continue
+
+                # 跳过非媒体附件
+                if "attachment" in disposition:
                     continue
 
                 try:
@@ -147,11 +169,17 @@ class MailFetcher:
             charset = msg.get_content_charset() or "utf-8"
             payload = msg.get_payload(decode=True)
             if payload:
-                body_text = payload.decode(charset, errors="replace")
+                decoded = payload.decode(charset, errors="replace")
+                if msg.get_content_type() == "text/html":
+                    body_html = decoded
+                else:
+                    body_text = decoded
 
         # 如果没有纯文本，从 HTML 中提取
         if not body_text and body_html:
             body_text = self._strip_html(body_html)
+
+        media_items.extend(self._media_from_html_data_urls(body_html, len(media_items) + 1))
 
         return ParsedEmail(
             message_id=message_id,
@@ -162,6 +190,7 @@ class MailFetcher:
             body_html=body_html,
             received_at=received_at,
             in_reply_to=in_reply_to,
+            media=media_items,
         )
 
     # ============================================================
@@ -178,6 +207,80 @@ class MailFetcher:
             else:
                 result.append(text)
         return "".join(result)
+
+    def _media_from_part(self, part, payload: bytes, index: int) -> EmailMedia | None:
+        content_type = part.get_content_type().lower()
+        if content_type not in self.SUPPORTED_IMAGE_TYPES | self.SUPPORTED_VIDEO_TYPES:
+            return None
+        disposition = str(part.get("Content-Disposition", "")).lower()
+        content_id = str(part.get("Content-ID", "")).strip("<> \t\r\n")
+        if content_id and content_type in self.SUPPORTED_IMAGE_TYPES:
+            source = "inline_cid"
+        elif "attachment" in disposition or part.get_filename():
+            source = "attachment"
+        elif content_id:
+            source = "inline_cid"
+        else:
+            source = "inline"
+        filename = self._decode_filename(part.get_filename())
+        if not filename:
+            extension = self.MEDIA_EXTENSIONS.get(content_type, ".bin")
+            prefix = "inline" if source.startswith("inline") else "media"
+            suffix = content_id or str(index)
+            filename = f"{prefix}-{suffix}{extension}"
+        return self._build_media(filename, content_type, source, content_id, payload)
+
+    def _media_from_html_data_urls(self, html: str, start_index: int) -> list[EmailMedia]:
+        if not html:
+            return []
+        pattern = re.compile(
+            r"data:(image/(?:jpeg|png|gif|webp));base64,([A-Za-z0-9+/=\s]+)",
+            flags=re.IGNORECASE,
+        )
+        items = []
+        for index, match in enumerate(pattern.finditer(html), start_index):
+            content_type = match.group(1).lower()
+            if content_type not in self.SUPPORTED_IMAGE_TYPES:
+                continue
+            try:
+                payload = base64.b64decode(re.sub(r"\s+", "", match.group(2)), validate=True)
+            except ValueError:
+                continue
+            extension = self.MEDIA_EXTENSIONS.get(content_type, ".img")
+            items.append(
+                self._build_media(
+                    f"inline-data-{index}{extension}",
+                    content_type,
+                    "inline_data",
+                    "",
+                    payload,
+                )
+            )
+        return items
+
+    def _build_media(self, filename: str, content_type: str, source: str,
+                     content_id: str, payload: bytes) -> EmailMedia:
+        fingerprint = b"\x1f".join([
+            source.encode("utf-8"),
+            filename.encode("utf-8", errors="replace"),
+            content_id.encode("utf-8", errors="replace"),
+            payload,
+        ])
+        media_id = hashlib.sha256(fingerprint).hexdigest()[:32]
+        return EmailMedia(
+            media_id=media_id,
+            filename=filename,
+            content_type=content_type,
+            source=source,
+            content_id=content_id,
+            size_bytes=len(payload),
+            data=payload,
+        )
+
+    def _decode_filename(self, raw: str | None) -> str:
+        if not raw:
+            return ""
+        return self._decode_mime_str(raw).strip()
 
     def _parse_sender(self, from_header: str) -> tuple:
         """解析发件人：返回 (显示名, 邮箱地址)"""

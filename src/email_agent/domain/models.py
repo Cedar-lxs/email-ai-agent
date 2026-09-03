@@ -4,6 +4,18 @@ from typing import Any
 
 
 @dataclass
+class EmailMedia:
+    media_id: str
+    filename: str
+    content_type: str
+    source: str
+    content_id: str = ""
+    size_bytes: int = 0
+    data: bytes = b""
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
 class ParsedEmail:
     message_id: str
     subject: str
@@ -14,6 +26,34 @@ class ParsedEmail:
     received_at: str
     in_reply_to: str = ""
     imap_uid: str = ""
+    media: list[EmailMedia] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class StoredMedia:
+    media_id: str
+    filename: str
+    content_type: str
+    source: str
+    path: str
+    size_bytes: int
+    derived_from: str = ""
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
+class MultimodalObservation:
+    summary: str = ""
+    visible_text: list[str] = field(default_factory=list)
+    product_identifiers: list[str] = field(default_factory=list)
+    fault_signals: list[str] = field(default_factory=list)
+    connection_state: list[str] = field(default_factory=list)
+    indicator_state: list[str] = field(default_factory=list)
+    risk_signals: list[str] = field(default_factory=list)
+    needed_information: list[str] = field(default_factory=list)
+    confidence: float = 0.0
+    raw_items: list[dict[str, Any]] = field(default_factory=list)
+    errors: list[str] = field(default_factory=list)
 
 
 @dataclass
