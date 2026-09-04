@@ -16,6 +16,7 @@ venv/
 data/
 drafts/
 logs/
+.worktrees/
 
 # Frontend
 frontend/node_modules/
