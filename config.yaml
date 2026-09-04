@@ -68,7 +68,7 @@ web_search:
   timeout: 15
   max_results: 3
   retries: 1
-  auto_send_low_risk: false
+  auto_send_low_risk: true
   allowed_intents:
     - "安装配置"
     - "使用指导"
@@ -78,7 +78,7 @@ web_search:
 
 multimodal:
   # DeepSeek 图片识别；默认关闭，开启后会分析邮件附件和正文内嵌图片
-  enabled: false
+  enabled: true
   provider: "deepseek"
   api_base: "https://api.deepseek.com"
   model: "deepseek-v4-flash-vision-exp"

@@ -282,7 +282,12 @@ const hasMultimodalData = computed(() => {
 const visualGroups = computed(() => {
   const data = multimodal.value || {}
   return [
-    { label: '型号/文字', items: [...(data.product_identifiers || []), ...(data.visible_text || [])], type: 'success' },
+    { label: '交换机类型', items: [switchTypeLabel(data.switch_management_type)].filter(Boolean), type: switchTypeTag(data.switch_management_type) },
+    { label: '型号', items: [...(data.model_numbers || []), ...(data.product_identifiers || [])], type: 'success' },
+    { label: '设备 ID', items: data.device_ids || [], type: 'info' },
+    { label: '端口组成', items: data.port_composition || [], type: 'info' },
+    { label: 'Ver', items: data.versions || [], type: 'info' },
+    { label: '标签文字', items: data.label_text || data.visible_text || [], type: '' },
     { label: '故障信号', items: data.fault_signals || [], type: 'warning' },
     { label: '连接状态', items: data.connection_state || [], type: 'info' },
     { label: '指示灯', items: data.indicator_state || [], type: 'info' },
@@ -290,6 +295,18 @@ const visualGroups = computed(() => {
     { label: '需补充', items: data.needed_information || [], type: '' }
   ]
 })
+
+const switchTypeLabel = (type) => {
+  if (type === 'managed') return '管理型交换机'
+  if (type === 'unmanaged') return '非管理型交换机'
+  return ''
+}
+
+const switchTypeTag = (type) => {
+  if (type === 'managed') return 'primary'
+  if (type === 'unmanaged') return 'success'
+  return ''
+}
 
 const statusLabels = {
   draft_ready: '待审核',

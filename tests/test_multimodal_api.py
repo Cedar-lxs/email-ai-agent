@@ -101,6 +101,12 @@ class MultimodalApiTests(unittest.TestCase):
         self.db.save_multimodal_trace("m1", {
             "summary": "The port indicator appears off.",
             "product_identifiers": ["GS105"],
+            "model_numbers": ["GS105"],
+            "device_ids": ["ID-7788"],
+            "port_composition": ["5 x RJ45 Gigabit Ethernet"],
+            "versions": ["Ver: 2.1"],
+            "switch_management_type": "unmanaged",
+            "label_text": ["Unmanaged Switch GS105 Ver: 2.1"],
             "risk_signals": [],
             "confidence": 0.8,
         })
@@ -111,6 +117,12 @@ class MultimodalApiTests(unittest.TestCase):
         payload = response.get_json()
         self.assertEqual(payload["media"][0]["media_id"], "img1")
         self.assertEqual(payload["multimodal"]["summary"], "The port indicator appears off.")
+        self.assertEqual(payload["multimodal"]["model_numbers"], ["GS105"])
+        self.assertEqual(payload["multimodal"]["device_ids"], ["ID-7788"])
+        self.assertEqual(payload["multimodal"]["port_composition"], ["5 x RJ45 Gigabit Ethernet"])
+        self.assertEqual(payload["multimodal"]["versions"], ["Ver: 2.1"])
+        self.assertEqual(payload["multimodal"]["switch_management_type"], "unmanaged")
+        self.assertEqual(payload["multimodal"]["label_text"], ["Unmanaged Switch GS105 Ver: 2.1"])
 
     def test_media_route_serves_manifest_file(self):
         directory = self.temp_root / "media" / "msg"

@@ -1,6 +1,7 @@
 """DeepSeek vision-based multimodal analysis for email media."""
 import base64
 import os
+import re
 from pathlib import Path
 
 import httpx
@@ -18,12 +19,19 @@ Rules:
 1. Only describe what is visible or strongly implied by the images.
 2. Do not invent product specifications, compatibility, repair steps, or causes.
 3. Treat blurry or incomplete images as low confidence.
-4. Flag any safety or high-risk signals, including smoke, burnt marks, water
+4. Read switch device labels carefully when visible. Extract the model number,
+   device ID or serial-like ID, port composition, Ver/version text, and all
+   label OCR text. Identify whether the label says the switch is managed or
+   unmanaged. Use switch_management_type exactly as one of: managed,
+   unmanaged, unknown.
+5. Flag any safety or high-risk signals, including smoke, burnt marks, water
    damage, exposed wiring, disassembly, unsafe power cabling, firmware flashing,
    factory reset, data deletion, voltage changes, or PoE power modification.
-5. Return one JSON object only, with these keys:
-   summary, visible_text, product_identifiers, fault_signals, connection_state,
-   indicator_state, risk_signals, needed_information, confidence.
+6. Return one JSON object only, with these keys:
+   summary, visible_text, product_identifiers, model_numbers, device_ids,
+   port_composition, versions, switch_management_type, label_text, fault_signals,
+   connection_state, indicator_state, risk_signals, needed_information,
+   confidence.
 
 Email subject: {subject}
 Email body:
@@ -39,6 +47,12 @@ def format_multimodal_context(observation: MultimodalObservation | None) -> str:
         f"Summary: {observation.summary or '(none)'}",
         f"Visible text: {', '.join(observation.visible_text) or '(none)'}",
         f"Product identifiers: {', '.join(observation.product_identifiers) or '(none)'}",
+        f"Model numbers: {', '.join(getattr(observation, 'model_numbers', []) or []) or '(none)'}",
+        f"Device IDs: {', '.join(getattr(observation, 'device_ids', []) or []) or '(none)'}",
+        f"Port composition: {', '.join(getattr(observation, 'port_composition', []) or []) or '(none)'}",
+        f"Versions: {', '.join(getattr(observation, 'versions', []) or []) or '(none)'}",
+        f"Switch management type: {getattr(observation, 'switch_management_type', 'unknown') or 'unknown'}",
+        f"Label text: {', '.join(getattr(observation, 'label_text', []) or []) or '(none)'}",
         f"Fault signals: {', '.join(observation.fault_signals) or '(none)'}",
         f"Connection state: {', '.join(observation.connection_state) or '(none)'}",
         f"Indicator state: {', '.join(observation.indicator_state) or '(none)'}",
@@ -141,18 +155,51 @@ class MultimodalAnalyzer:
 
     def _observation_from_response(self, payload: dict,
                                    images: list[StoredMedia]) -> MultimodalObservation:
-        content = payload["choices"][0]["message"].get("content") or "{}"
-        data = AIProcessor._parse_json_object(content)
+        message = payload["choices"][0]["message"]
+        content = message.get("content") or ""
+        reasoning = message.get("reasoning_content") or ""
+        data = {}
+        if content.strip():
+            try:
+                data = AIProcessor._parse_json_object(content)
+            except ValueError:
+                if reasoning.strip():
+                    data = self._data_from_reasoning(reasoning)
+                else:
+                    raise
+        elif reasoning.strip():
+            data = self._data_from_reasoning(reasoning)
+        return self._observation_from_data(data, images)
+
+    def _data_from_reasoning(self, reasoning: str) -> dict:
+        try:
+            return AIProcessor._parse_json_object(reasoning)
+        except ValueError:
+            return self._label_fields_from_text(reasoning)
+
+    def _observation_from_data(self, data: dict,
+                               images: list[StoredMedia]) -> MultimodalObservation:
+        confidence = self._confidence(data.get("confidence", 0))
+        if not confidence and self._has_label_fields(data):
+            confidence = 0.85
         return MultimodalObservation(
-            summary=str(data.get("summary", "")).strip(),
+            summary=str(data.get("summary", "")).strip() or self._summary_from_label_data(data),
             visible_text=self._list(data.get("visible_text")),
             product_identifiers=self._list(data.get("product_identifiers")),
+            model_numbers=self._list(data.get("model_numbers")),
+            device_ids=self._list(data.get("device_ids")),
+            port_composition=self._list(data.get("port_composition")),
+            versions=self._list(data.get("versions")),
+            switch_management_type=self._switch_management_type(
+                data.get("switch_management_type")
+            ),
+            label_text=self._list(data.get("label_text")),
             fault_signals=self._list(data.get("fault_signals")),
             connection_state=self._list(data.get("connection_state")),
             indicator_state=self._list(data.get("indicator_state")),
             risk_signals=self._list(data.get("risk_signals")),
             needed_information=self._list(data.get("needed_information")),
-            confidence=self._confidence(data.get("confidence", 0)),
+            confidence=confidence,
             raw_items=[{"media_id": item.media_id, "filename": item.filename,
                         "source": item.source, "derived_from": item.derived_from}
                        for item in images],
@@ -183,3 +230,104 @@ class MultimodalAnalyzer:
         except (TypeError, ValueError):
             return 0.0
         return max(0.0, min(1.0, number))
+
+    @staticmethod
+    def _switch_management_type(value) -> str:
+        normalized = str(value or "").strip().lower()
+        if not normalized:
+            return "unknown"
+        unmanaged_terms = ("unmanaged", "non-managed", "非管理", "傻瓜")
+        managed_terms = ("managed", "web managed", "smart managed", "管理型", "网管")
+        if any(term in normalized for term in unmanaged_terms):
+            return "unmanaged"
+        if any(term in normalized for term in managed_terms):
+            return "managed"
+        return "unknown"
+
+    @classmethod
+    def _label_fields_from_text(cls, text: str) -> dict:
+        return {
+            "model_numbers": cls._unique(cls._matches(
+                text, r"\bModel\s*:\s*([A-Z0-9][A-Z0-9._-]{2,})"
+            )),
+            "device_ids": cls._unique(
+                cls._matches(text, r"\bDevice\s*ID\s*:\s*([A-Z0-9][A-Z0-9._-]{8,})")
+                + cls._matches(text, r"\bBarcode\s*(?:text|number)?\s*:\s*([A-Z0-9][A-Z0-9._-]{8,})")
+            ),
+            "port_composition": cls._unique(cls._matches(
+                text, r"\bPort\s*:\s*([A-Z0-9*.+/\s-]+(?:Uplink|uplink))"
+            )),
+            "versions": cls._unique(cls._matches(
+                text, r"\bVer(?:sion)?\s*:?\s*([A-Z]?\d+(?:\.\d+)*)"
+            )),
+            "switch_management_type": cls._management_type_from_text(text),
+            "label_text": cls._unique(cls._matches(
+                text, r"(Cloud-Managed\s+Gigabit\s+POE\s+Switch|Managed\s+Switch|Unmanaged\s+Switch|非管理型交换机|管理型交换机)"
+            )),
+            "visible_text": cls._visible_label_lines(text),
+            "confidence": cls._confidence_from_text(text),
+        }
+
+    @staticmethod
+    def _matches(text: str, pattern: str) -> list[str]:
+        values = []
+        for match in re.findall(pattern, str(text or ""), flags=re.I):
+            value = str(match or "").strip().strip('".,;')
+            if '"' in value:
+                value = value.split('"', 1)[0].strip()
+            if "This is" in value:
+                value = value.split("This is", 1)[0].strip()
+            if value:
+                values.append(value.strip('".,;'))
+        return values
+
+    @staticmethod
+    def _unique(values: list[str]) -> list[str]:
+        return list(dict.fromkeys(str(value).strip() for value in values if str(value).strip()))
+
+    @classmethod
+    def _management_type_from_text(cls, text: str) -> str:
+        lowered = str(text or "").lower()
+        if any(term in lowered for term in ("unmanaged", "non-managed", "非管理", "傻瓜")):
+            return "unmanaged"
+        if any(term in lowered for term in ("cloud-managed", "web managed", "smart managed", "managed switch", "管理型", "网管")):
+            return "managed"
+        return "unknown"
+
+    @classmethod
+    def _visible_label_lines(cls, text: str) -> list[str]:
+        lines = []
+        for line in str(text or "").splitlines():
+            stripped = line.strip(" -")
+            if any(term in stripped.lower() for term in (
+                "model:", "device id:", "port:", "ver:", "managed", "switch",
+            )):
+                lines.append(stripped.strip('"'))
+        return cls._unique(lines)
+
+    @classmethod
+    def _summary_from_label_data(cls, data: dict) -> str:
+        model = ", ".join(cls._list(data.get("model_numbers")))
+        management_type = cls._switch_management_type(data.get("switch_management_type"))
+        parts = []
+        if model:
+            parts.append(f"label shows model {model}")
+        if management_type != "unknown":
+            parts.append(f"{management_type} switch")
+        return "; ".join(parts)
+
+    @classmethod
+    def _confidence_from_text(cls, text: str) -> float:
+        matches = re.findall(r"\b0\.\d+|1\.0\b", str(text or ""))
+        if matches:
+            return cls._confidence(matches[-1])
+        if any(term in str(text or "").lower() for term in ("clear", "high", "confident")):
+            return 0.85
+        return 0.0
+
+    @classmethod
+    def _has_label_fields(cls, data: dict) -> bool:
+        return any(
+            cls._list(data.get(field))
+            for field in ("model_numbers", "device_ids", "port_composition", "versions", "label_text")
+        ) or cls._switch_management_type(data.get("switch_management_type")) != "unknown"

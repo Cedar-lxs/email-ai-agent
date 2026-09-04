@@ -59,7 +59,7 @@ class WebSearchTests(unittest.TestCase):
             post.return_value = SimpleNamespace(raise_for_status=lambda: None, json=lambda: response)
             self.assertEqual(client.search("network issue"), [])
 
-    def test_web_search_safety_policy_rejects_models_and_high_risk_actions(self):
+    def test_web_search_safety_policy_allows_low_risk_models_and_rejects_high_risk_actions(self):
         agent = EmailAgent.__new__(EmailAgent)
         agent.web_search = SimpleNamespace(available=True)
         agent.web_search_config = {
@@ -67,13 +67,29 @@ class WebSearchTests(unittest.TestCase):
         }
         safe_intent = IntentResult("网络连接", "neutral", "low", "general network issue", [], False)
         self.assertTrue(agent._can_use_web_search(safe_intent, RetrievalQuery("Cannot connect to network")))
-        self.assertFalse(agent._can_use_web_search(
+        self.assertTrue(agent._can_use_web_search(
             safe_intent, RetrievalQuery("GPS208 cannot connect", identifiers=("gps208",))
         ))
         self.assertFalse(agent._can_use_web_search(safe_intent, RetrievalQuery("How to factory reset device")))
         self.assertFalse(agent._can_use_web_search(
             IntentResult("业务问题", "neutral", "low", "order question", [], False),
             RetrievalQuery("order question"),
+        ))
+
+    def test_web_search_safety_ignores_label_only_poe_when_customer_text_is_low_risk(self):
+        agent = EmailAgent.__new__(EmailAgent)
+        agent.web_search = SimpleNamespace(available=True)
+        agent.web_search_config = {"allowed_intents": ["网络连接"]}
+        safe_intent = IntentResult("网络连接", "neutral", "low", "offline", [], False)
+
+        self.assertTrue(agent._can_use_web_search(
+            safe_intent,
+            RetrievalQuery(
+                "Cannot connect to network",
+                subject="Switch offline",
+                keywords=("GPS208 PoE Switch", "非管理型交换机"),
+                identifiers=("gps208",),
+            ),
         ))
 
     def test_unknown_non_business_intent_is_normalized_to_other_technical(self):

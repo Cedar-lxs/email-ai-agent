@@ -493,7 +493,13 @@ class EmailAgent:
 
     @staticmethod
     def _web_search_query(query: RetrievalQuery) -> str:
-        text = f"{query.subject} {query.text}".strip()
+        text = " ".join((
+            query.subject,
+            query.summary,
+            " ".join(query.keywords),
+            " ".join(query.identifiers),
+            query.text,
+        )).strip()
         text = re.sub(r"\b[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}\b", "", text)
         text = re.sub(r"\b(?:order|订单)\s*[:#-]?\s*[A-Za-z0-9-]{4,}\b", "", text, flags=re.I)
         text = re.sub(r"\b(?:\+?\d[\d\s-]{7,}\d)\b", "", text)
@@ -529,15 +535,14 @@ class EmailAgent:
             return False
         if intent.intent not in set(self.web_search_config.get("allowed_intents", [])):
             return False
-        if query.identifiers:
-            return False
         unsafe_terms = (
             "firmware", "upgrade", "reset", "factory", "power", "poe", "voltage",
             "disassembly", "warranty", "refund", "order", "delete", "erase", "safety",
             "价格", "固件", "升级", "恢复出厂", "供电", "拆机", "保修", "退款",
             "订单", "电压", "删除", "清除", "安全", "数据丢失", "数据恢复", "电气",
         )
-        return not any(term in query.combined_text.lower() for term in unsafe_terms)
+        customer_text = f"{query.subject}\n{query.text}".lower()
+        return not any(term in customer_text for term in unsafe_terms)
 
     async def _search_web_context_async(self, query: RetrievalQuery) -> tuple[str, dict]:
         search_query = self._web_search_query(query)
@@ -607,9 +612,17 @@ class EmailAgent:
         if not observation:
             return []
         terms = []
-        for field in ("product_identifiers", "fault_signals", "connection_state",
-                      "indicator_state", "visible_text"):
+        for field in (
+            "product_identifiers", "model_numbers", "device_ids", "port_composition",
+            "versions", "label_text", "fault_signals", "connection_state",
+            "indicator_state", "visible_text",
+        ):
             terms.extend(getattr(observation, field, []) or [])
+        management_type = getattr(observation, "switch_management_type", "unknown")
+        if management_type == "managed":
+            terms.extend(["管理型交换机", "网管交换机", "managed switch"])
+        elif management_type == "unmanaged":
+            terms.extend(["非管理型交换机", "非网管交换机", "unmanaged switch"])
         if observation.summary:
             terms.append(observation.summary)
         return list(dict.fromkeys(str(term).strip() for term in terms if str(term).strip()))
@@ -618,7 +631,12 @@ class EmailAgent:
     def _build_multimodal_identifiers(observation) -> list[str]:
         if not observation:
             return []
-        return [str(value).lower() for value in observation.product_identifiers if str(value).strip()]
+        identifiers = []
+        for field in ("product_identifiers", "model_numbers", "device_ids"):
+            identifiers.extend(getattr(observation, field, []) or [])
+        return list(dict.fromkeys(
+            str(value).lower() for value in identifiers if str(value).strip()
+        ))
 
     @staticmethod
     def _visual_requires_human(observation, media_count: int = 0) -> bool:
@@ -641,9 +659,10 @@ class EmailAgent:
                        multimodal_observation=None) -> bool:
         if not allowed or self.mode != "full_auto":
             return False
+        if bool(getattr(multimodal_observation, "errors", [])):
+            return False
         if media_count and (
             self._visual_requires_human(multimodal_observation, media_count)
-            or bool(getattr(multimodal_observation, "errors", []))
         ):
             return False
         return not used_web_search or bool(

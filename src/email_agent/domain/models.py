@@ -47,6 +47,12 @@ class MultimodalObservation:
     summary: str = ""
     visible_text: list[str] = field(default_factory=list)
     product_identifiers: list[str] = field(default_factory=list)
+    model_numbers: list[str] = field(default_factory=list)
+    device_ids: list[str] = field(default_factory=list)
+    port_composition: list[str] = field(default_factory=list)
+    versions: list[str] = field(default_factory=list)
+    switch_management_type: str = "unknown"
+    label_text: list[str] = field(default_factory=list)
     fault_signals: list[str] = field(default_factory=list)
     connection_state: list[str] = field(default_factory=list)
     indicator_state: list[str] = field(default_factory=list)
