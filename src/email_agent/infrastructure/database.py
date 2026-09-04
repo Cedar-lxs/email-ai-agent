@@ -35,7 +35,9 @@ class EmailDB:
                 retry_count INTEGER DEFAULT 0,
                 retrieval_trace TEXT DEFAULT '',
                 media_manifest TEXT DEFAULT '',
-                multimodal_trace TEXT DEFAULT ''
+                multimodal_trace TEXT DEFAULT '',
+                decision_trace TEXT DEFAULT '',
+                attachment_manifest TEXT DEFAULT ''
             );
             CREATE TABLE IF NOT EXISTS app_settings (
                 key TEXT PRIMARY KEY,
@@ -58,6 +60,8 @@ class EmailDB:
             "retrieval_trace": "TEXT DEFAULT ''",
             "media_manifest": "TEXT DEFAULT ''",
             "multimodal_trace": "TEXT DEFAULT ''",
+            "decision_trace": "TEXT DEFAULT ''",
+            "attachment_manifest": "TEXT DEFAULT ''",
         }
         for column, definition in migrations.items():
             if column not in existing:
@@ -271,6 +275,20 @@ class EmailDB:
         )
         self.conn.commit()
 
+    def save_decision_trace(self, message_id: str, trace: dict):
+        self.conn.execute(
+            "UPDATE processed_emails SET decision_trace=? WHERE message_id=?",
+            (json.dumps(trace, ensure_ascii=False), message_id),
+        )
+        self.conn.commit()
+
+    def save_attachment_manifest(self, message_id: str, manifest: list[dict]):
+        self.conn.execute(
+            "UPDATE processed_emails SET attachment_manifest=? WHERE message_id=?",
+            (json.dumps(manifest, ensure_ascii=False), message_id),
+        )
+        self.conn.commit()
+
     @staticmethod
     def parse_retrieval_trace(row) -> dict:
         try:
@@ -293,6 +311,22 @@ class EmailDB:
         except (json.JSONDecodeError, KeyError, TypeError):
             return {}
         return value if isinstance(value, dict) else {}
+
+    @staticmethod
+    def parse_decision_trace(row) -> dict:
+        try:
+            value = json.loads(row["decision_trace"] or "{}")
+        except (json.JSONDecodeError, KeyError, TypeError):
+            return {}
+        return value if isinstance(value, dict) else {}
+
+    @staticmethod
+    def parse_attachment_manifest(row) -> list[dict]:
+        try:
+            value = json.loads(row["attachment_manifest"] or "[]")
+        except (json.JSONDecodeError, KeyError, TypeError):
+            return []
+        return value if isinstance(value, list) else []
 
     def save_conversation(self, sender_email: str, message_id: str,
                           role: str, content: str):
