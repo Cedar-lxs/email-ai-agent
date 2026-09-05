@@ -93,6 +93,15 @@ class MultimodalAnalyzerTests(unittest.TestCase):
             self.assertEqual(observation.needed_information, ["firmware version"])
             self.assertEqual(observation.confidence, 1.0)
             self.assertEqual(observation.errors, [])
+            self.assertEqual(observation.diagnostics["provider"], "deepseek")
+            self.assertEqual(observation.diagnostics["model"], "deepseek-v4-flash-vision-exp")
+            self.assertEqual(observation.diagnostics["image_count"], 1)
+            self.assertEqual(observation.diagnostics["parsed_from"], "content")
+            self.assertTrue(observation.diagnostics["json_parsed"])
+            self.assertFalse(observation.diagnostics["fallback_used"])
+            self.assertIn("summary", observation.diagnostics["populated_fields"])
+            self.assertIn("model_numbers", observation.diagnostics["populated_fields"])
+            self.assertLessEqual(len(observation.diagnostics["response_preview"]), 500)
 
     def test_extracts_label_fields_from_reasoning_content_when_content_is_empty(self):
         with tempfile.TemporaryDirectory() as root:
@@ -129,6 +138,10 @@ class MultimodalAnalyzerTests(unittest.TestCase):
             self.assertEqual(observation.versions, ["V3"])
             self.assertEqual(observation.switch_management_type, "managed")
             self.assertGreaterEqual(observation.confidence, 0.9)
+            self.assertEqual(observation.diagnostics["parsed_from"], "reasoning_content")
+            self.assertTrue(observation.diagnostics["fallback_used"])
+            self.assertFalse(observation.diagnostics["json_parsed"])
+            self.assertLessEqual(len(observation.diagnostics["response_preview"]), 500)
 
     def test_falls_back_to_reasoning_when_content_is_not_json(self):
         with tempfile.TemporaryDirectory() as root:
@@ -191,6 +204,19 @@ class MultimodalAnalyzerTests(unittest.TestCase):
 
             self.assertEqual(observation.summary, "")
             self.assertTrue(any("network down" in error for error in observation.errors))
+            self.assertIn("network down", observation.diagnostics["errors"][0])
+            self.assertEqual(observation.diagnostics["image_count"], 1)
+
+    def test_missing_api_key_records_diagnostic_error(self):
+        with tempfile.TemporaryDirectory() as root:
+            image = self.stored_image(Path(root))
+            analyzer = MultimodalAnalyzer({"multimodal": {"enabled": True}})
+
+            observation = analyzer.analyze("Offline", "Device offline", [image])
+
+            self.assertTrue(observation.diagnostics["errors"])
+            self.assertIn("API Key", observation.diagnostics["errors"][0])
+            self.assertEqual(observation.diagnostics["image_count"], 1)
 
     def test_async_analyze_uses_same_normalization(self):
         with tempfile.TemporaryDirectory() as root:

@@ -3,6 +3,7 @@ import base64
 import os
 import re
 from pathlib import Path
+from urllib.parse import urlparse
 
 import httpx
 
@@ -92,9 +93,12 @@ class MultimodalAnalyzer:
                 media: list[StoredMedia]) -> MultimodalObservation:
         images = self._image_media(media)
         if not images:
-            return MultimodalObservation()
+            return MultimodalObservation(diagnostics=self._diagnostics(images))
         if not self.available:
-            return MultimodalObservation(errors=["多模态分析未启用或缺少 API Key"])
+            error = "多模态分析未启用或缺少 API Key"
+            return MultimodalObservation(
+                errors=[error], diagnostics=self._diagnostics(images, errors=[error])
+            )
         try:
             response = httpx.post(
                 f"{self.api_base}/v1/chat/completions",
@@ -108,15 +112,21 @@ class MultimodalAnalyzer:
             response.raise_for_status()
             return self._observation_from_response(response.json(), images)
         except Exception as exc:
-            return MultimodalObservation(errors=[f"多模态分析失败：{exc}"])
+            error = f"多模态分析失败：{exc}"
+            return MultimodalObservation(
+                errors=[error], diagnostics=self._diagnostics(images, errors=[error])
+            )
 
     async def analyze_async(self, subject: str, body: str,
                             media: list[StoredMedia]) -> MultimodalObservation:
         images = self._image_media(media)
         if not images:
-            return MultimodalObservation()
+            return MultimodalObservation(diagnostics=self._diagnostics(images))
         if not self.available:
-            return MultimodalObservation(errors=["多模态分析未启用或缺少 API Key"])
+            error = "多模态分析未启用或缺少 API Key"
+            return MultimodalObservation(
+                errors=[error], diagnostics=self._diagnostics(images, errors=[error])
+            )
         try:
             async with httpx.AsyncClient() as client:
                 response = await client.post(
@@ -131,7 +141,10 @@ class MultimodalAnalyzer:
             response.raise_for_status()
             return self._observation_from_response(response.json(), images)
         except Exception as exc:
-            return MultimodalObservation(errors=[f"多模态分析失败：{exc}"])
+            error = f"多模态分析失败：{exc}"
+            return MultimodalObservation(
+                errors=[error], diagnostics=self._diagnostics(images, errors=[error])
+            )
 
     def _payload(self, subject: str, body: str, images: list[StoredMedia]) -> dict:
         content = [{
@@ -159,51 +172,125 @@ class MultimodalAnalyzer:
         content = message.get("content") or ""
         reasoning = message.get("reasoning_content") or ""
         data = {}
+        parsed_from = ""
+        json_parsed = False
+        fallback_used = False
+        response_text = content or reasoning
         if content.strip():
             try:
                 data = AIProcessor._parse_json_object(content)
+                parsed_from = "content"
+                json_parsed = True
             except ValueError:
                 if reasoning.strip():
-                    data = self._data_from_reasoning(reasoning)
+                    data, json_parsed = self._data_from_reasoning(reasoning)
+                    parsed_from = "reasoning_content"
+                    fallback_used = True
+                    response_text = reasoning
                 else:
                     raise
         elif reasoning.strip():
-            data = self._data_from_reasoning(reasoning)
-        return self._observation_from_data(data, images)
+            data, json_parsed = self._data_from_reasoning(reasoning)
+            parsed_from = "reasoning_content"
+            fallback_used = True
+        return self._observation_from_data(
+            data,
+            images,
+            diagnostics=self._diagnostics(
+                images,
+                parsed_from=parsed_from,
+                json_parsed=json_parsed,
+                fallback_used=fallback_used,
+                response_preview=response_text,
+            ),
+        )
 
-    def _data_from_reasoning(self, reasoning: str) -> dict:
+    def _data_from_reasoning(self, reasoning: str) -> tuple[dict, bool]:
         try:
-            return AIProcessor._parse_json_object(reasoning)
+            return AIProcessor._parse_json_object(reasoning), True
         except ValueError:
-            return self._label_fields_from_text(reasoning)
+            return self._label_fields_from_text(reasoning), False
 
     def _observation_from_data(self, data: dict,
-                               images: list[StoredMedia]) -> MultimodalObservation:
+                               images: list[StoredMedia],
+                               diagnostics: dict | None = None) -> MultimodalObservation:
         confidence = self._confidence(data.get("confidence", 0))
         if not confidence and self._has_label_fields(data):
             confidence = 0.85
+        summary = str(data.get("summary", "")).strip() or self._summary_from_label_data(data)
+        fields = {
+            "summary": summary,
+            "visible_text": self._list(data.get("visible_text")),
+            "product_identifiers": self._list(data.get("product_identifiers")),
+            "model_numbers": self._list(data.get("model_numbers")),
+            "device_ids": self._list(data.get("device_ids")),
+            "port_composition": self._list(data.get("port_composition")),
+            "versions": self._list(data.get("versions")),
+            "switch_management_type": (
+                self._switch_management_type(data.get("switch_management_type"))
+                if self._switch_management_type(data.get("switch_management_type")) != "unknown"
+                else ""
+            ),
+            "label_text": self._list(data.get("label_text")),
+            "fault_signals": self._list(data.get("fault_signals")),
+            "connection_state": self._list(data.get("connection_state")),
+            "indicator_state": self._list(data.get("indicator_state")),
+            "risk_signals": self._list(data.get("risk_signals")),
+            "needed_information": self._list(data.get("needed_information")),
+        }
+        diagnostics = dict(diagnostics or self._diagnostics(images))
+        diagnostics["populated_fields"] = [name for name, value in fields.items() if value]
         return MultimodalObservation(
-            summary=str(data.get("summary", "")).strip() or self._summary_from_label_data(data),
-            visible_text=self._list(data.get("visible_text")),
-            product_identifiers=self._list(data.get("product_identifiers")),
-            model_numbers=self._list(data.get("model_numbers")),
-            device_ids=self._list(data.get("device_ids")),
-            port_composition=self._list(data.get("port_composition")),
-            versions=self._list(data.get("versions")),
+            summary=summary,
+            visible_text=fields["visible_text"],
+            product_identifiers=fields["product_identifiers"],
+            model_numbers=fields["model_numbers"],
+            device_ids=fields["device_ids"],
+            port_composition=fields["port_composition"],
+            versions=fields["versions"],
             switch_management_type=self._switch_management_type(
                 data.get("switch_management_type")
             ),
-            label_text=self._list(data.get("label_text")),
-            fault_signals=self._list(data.get("fault_signals")),
-            connection_state=self._list(data.get("connection_state")),
-            indicator_state=self._list(data.get("indicator_state")),
-            risk_signals=self._list(data.get("risk_signals")),
-            needed_information=self._list(data.get("needed_information")),
+            label_text=fields["label_text"],
+            fault_signals=fields["fault_signals"],
+            connection_state=fields["connection_state"],
+            indicator_state=fields["indicator_state"],
+            risk_signals=fields["risk_signals"],
+            needed_information=fields["needed_information"],
             confidence=confidence,
             raw_items=[{"media_id": item.media_id, "filename": item.filename,
                         "source": item.source, "derived_from": item.derived_from}
                        for item in images],
+            diagnostics=diagnostics,
         )
+
+    def _diagnostics(self, images: list[StoredMedia], **updates) -> dict:
+        diagnostics = {
+            "provider": urlparse(self.api_base).hostname or self.api_base,
+            "model": self.model,
+            "image_count": len(images),
+            "parsed_from": "",
+            "json_parsed": False,
+            "fallback_used": False,
+            "populated_fields": [],
+            "response_preview": "",
+            "errors": [],
+        }
+        if diagnostics["provider"].startswith("api."):
+            diagnostics["provider"] = diagnostics["provider"][4:]
+        diagnostics["provider"] = diagnostics["provider"].split(".", 1)[0]
+        diagnostics.update(updates)
+        diagnostics["response_preview"] = self._redact_preview(
+            diagnostics.get("response_preview", "")
+        )
+        return diagnostics
+
+    @staticmethod
+    def _redact_preview(value: str) -> str:
+        preview = str(value or "")
+        preview = re.sub(r"Bearer\s+\S+", "Bearer [REDACTED]", preview, flags=re.I)
+        preview = re.sub(r"(?:api[_-]?key|authorization)\s*[:=]\s*\S+", "[REDACTED]", preview, flags=re.I)
+        return preview[:500]
 
     def _image_media(self, media: list[StoredMedia]) -> list[StoredMedia]:
         return [item for item in media if item.content_type in self.IMAGE_TYPES and Path(item.path).is_file()]

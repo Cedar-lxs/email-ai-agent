@@ -61,6 +61,7 @@ class MultimodalObservation:
     confidence: float = 0.0
     raw_items: list[dict[str, Any]] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
+    diagnostics: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
