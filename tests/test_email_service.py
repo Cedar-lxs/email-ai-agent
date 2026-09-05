@@ -162,6 +162,10 @@ class AsyncEmailServiceTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(agent._can_auto_send(True, True))
         agent.web_search_config["auto_send_low_risk"] = False
         self.assertFalse(agent._can_auto_send(True, True))
+        self.assertIn(
+            "web_search_auto_send_disabled",
+            agent._draft_blocking_reasons(True, None, 0, used_web_search=True),
+        )
 
     async def test_mail_fetcher_async_methods_delegate_blocking_imap_calls(self):
         fetcher = MailFetcher("imap.example.com", 993, "agent@example.com", "secret")

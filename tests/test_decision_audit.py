@@ -4,6 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from src.email_agent.application.decision_audit import build_decision_trace
 from src.email_agent.infrastructure.database import EmailDB
 
 
@@ -78,6 +79,101 @@ class DecisionAuditDatabaseTests(unittest.TestCase):
 
         self.assertEqual(EmailDB.parse_decision_trace(row), {})
         self.assertEqual(EmailDB.parse_attachment_manifest(row), [])
+
+
+class DecisionAuditBuilderTests(unittest.TestCase):
+    def test_auto_sent_low_risk_technical_mail_has_no_blocking_reasons(self):
+        trace = build_decision_trace(
+            action="auto_sent",
+            mode="full_auto",
+            intent="network_connection",
+            sentiment="neutral",
+            urgency="low",
+            auto_allowed_intent=True,
+            local_knowledge_hits=2,
+            used_web_search=False,
+            media_count=0,
+            attachment_count=0,
+            known_intents={"network_connection"},
+        )
+
+        self.assertEqual(trace["blocking_reasons"], [])
+        self.assertEqual(trace["signals"], [])
+
+    def test_draft_in_semi_auto_mode_records_mode_blocking_reason(self):
+        trace = build_decision_trace(
+            action="draft_ready",
+            mode="semi_auto",
+            intent="network_connection",
+            sentiment="neutral",
+            urgency="low",
+            auto_allowed_intent=True,
+            local_knowledge_hits=1,
+            used_web_search=False,
+            media_count=0,
+            attachment_count=0,
+            known_intents={"network_connection"},
+        )
+
+        self.assertIn("semi_auto_mode", trace["blocking_reasons"])
+
+    def test_escalated_business_mail_records_high_risk_reason(self):
+        trace = build_decision_trace(
+            action="escalated",
+            mode="full_auto",
+            intent="business_question",
+            sentiment="neutral",
+            urgency="high",
+            auto_allowed_intent=False,
+            local_knowledge_hits=0,
+            used_web_search=False,
+            media_count=0,
+            attachment_count=0,
+            known_intents={"business_question"},
+        )
+
+        self.assertIn("business_or_high_risk", trace["blocking_reasons"])
+
+    def test_sanitizes_untrusted_labels_before_persisting_trace(self):
+        trace = build_decision_trace(
+            action="auto_sent\napi_key=sk-1234567890abcdef",
+            mode="full_auto",
+            intent="unknown",
+            sentiment="api_key=abcd1234",
+            urgency="short reasoning text",
+            auto_allowed_intent=True,
+            local_knowledge_hits=1,
+            used_web_search=False,
+            media_count=0,
+            attachment_count=0,
+            known_intents={"网络连接"},
+            blocking_reasons=["reason\nsecret-token-1234567890"],
+            signals=["api_key=abcd1234", "media_present"],
+        )
+
+        self.assertEqual(trace["action"], "unknown")
+        self.assertEqual(trace["sentiment"], "unknown")
+        self.assertEqual(trace["urgency"], "unknown")
+        self.assertEqual(trace["blocking_reasons"], ["unknown"])
+        self.assertEqual(trace["signals"], ["unknown", "media_present"])
+
+    def test_missing_knowledge_escalation_does_not_invent_business_reason(self):
+        trace = build_decision_trace(
+            action="escalated",
+            mode="full_auto",
+            intent="设备离线",
+            sentiment="neutral",
+            urgency="low",
+            auto_allowed_intent=False,
+            local_knowledge_hits=0,
+            used_web_search=False,
+            media_count=0,
+            attachment_count=0,
+            known_intents={"设备离线"},
+            blocking_reasons=["missing_knowledge"],
+        )
+
+        self.assertEqual(trace["blocking_reasons"], ["missing_knowledge"])
 
 
 if __name__ == "__main__":

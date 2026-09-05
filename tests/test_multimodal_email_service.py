@@ -161,6 +161,9 @@ class MultimodalEmailServiceTests(unittest.IsolatedAsyncioTestCase):
             self.db.parse_multimodal_trace(row)["summary"],
             "The label shows GS105 and the port indicator appears off.",
         )
+        decision_trace = self.db.parse_decision_trace(row)
+        self.assertEqual(decision_trace["action"], "draft_ready")
+        self.assertIn("semi_auto_mode", decision_trace["blocking_reasons"])
         query = agent.retriever.queries[0]
         self.assertIn("GS105", query.keywords)
         self.assertIn("ID-7788", query.keywords)
@@ -188,6 +191,9 @@ class MultimodalEmailServiceTests(unittest.IsolatedAsyncioTestCase):
         row = self.db.get_email("m1")
         self.assertEqual(row["status"], "escalated")
         self.assertIn("多模态识别发现高风险", row["notes"])
+        decision_trace = self.db.parse_decision_trace(row)
+        self.assertEqual(decision_trace["action"], "escalated")
+        self.assertIn("visual_risk", decision_trace["blocking_reasons"])
         agent.ai.generate_reply_async.assert_not_called()
 
     async def test_semi_auto_media_analysis_error_still_creates_review_draft(self):
@@ -273,6 +279,9 @@ class MultimodalEmailServiceTests(unittest.IsolatedAsyncioTestCase):
         row = self.db.get_email("m1")
         self.assertEqual(row["status"], "replied")
         self.assertIn("使用博查行业通用参考自动发送", row["notes"])
+        decision_trace = self.db.parse_decision_trace(row)
+        self.assertEqual(decision_trace["action"], "auto_sent")
+        self.assertTrue(decision_trace["used_web_search"])
         agent.sender.send_reply.assert_called_once()
 
 

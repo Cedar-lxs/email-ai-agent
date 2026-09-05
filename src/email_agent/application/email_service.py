@@ -8,6 +8,7 @@ import time
 from pathlib import Path
 
 from email_agent.config import load_config
+from email_agent.application.decision_audit import build_decision_trace
 from email_agent.domain.models import RetrievalQuery
 from email_agent.domain.repositories import KnowledgeContextFormatter
 from email_agent.infrastructure.database import EmailDB
@@ -141,6 +142,7 @@ class EmailAgent:
                 email.message_id, email.subject, email.sender, status="skipped_self",
                 original_body=email.body_text, in_reply_to=email.in_reply_to,
             )
+            self._save_decision_trace(email, "skipped_self", blocking_reasons=["self_message"])
             _safe_print("售后邮箱自身邮件，已跳过以防回复循环")
             self.logger.info(f"跳过自身邮件: {email.message_id}")
             return True
@@ -173,11 +175,19 @@ class EmailAgent:
         )
 
         if self._needs_human(intent, f"{email.subject}\n{email.body_text}"):
+            self._save_decision_trace(
+                email, "escalated", intent, media_count=media_count,
+                blocking_reasons=["business_or_high_risk"],
+            )
             self.db.update_status(email.message_id, "escalated", notes="业务或高风险问题")
             _safe_print("已转人工处理")
             self.logger.info(f"邮件 {email.message_id} 已转人工: 业务或高风险问题")
             return True
         if self._visual_requires_human(multimodal_observation, media_count):
+            self._save_decision_trace(
+                email, "escalated", intent, media_count=media_count,
+                blocking_reasons=["visual_risk"], signals=["visual_risk"],
+            )
             self.db.update_status(
                 email.message_id, "escalated",
                 notes="多模态识别发现高风险或低置信度关键信息，已转人工"
@@ -193,6 +203,10 @@ class EmailAgent:
                 "客户邮件中文翻译",
             )
         except Exception as exc:
+            self._save_decision_trace(
+                email, "escalated", intent, media_count=media_count,
+                blocking_reasons=["translation_failed"],
+            )
             self.db.update_status(
                 email.message_id, "escalated", notes=f"未生成有效中文检索文本，已转人工：{exc}"
             )
@@ -232,6 +246,11 @@ class EmailAgent:
                 used_web_search = True
                 self.db.save_retrieval_trace(email.message_id, web_trace)
         if not knowledge:
+            self._save_decision_trace(
+                email, "escalated", intent, local_knowledge_hits=len(hits),
+                used_web_search=used_web_search, media_count=media_count,
+                blocking_reasons=["missing_knowledge"],
+            )
             self.db.update_status(
                 email.message_id, "escalated",
                 notes=f"没有置信度达到 {evidence_threshold:.0%} 的直接知识依据，且无可用通用参考，已转人工"
@@ -254,6 +273,11 @@ class EmailAgent:
                 ), "AI 回复生成"
             )
         except Exception as exc:
+            self._save_decision_trace(
+                email, "escalated", intent, local_knowledge_hits=len(hits),
+                used_web_search=used_web_search, media_count=media_count,
+                blocking_reasons=["reply_generation_failed"],
+            )
             self.db.update_status(
                 email.message_id, "escalated", notes=f"AI 未生成有效回复，已转人工：{exc}"
             )
@@ -272,6 +296,10 @@ class EmailAgent:
             )
             if not sent:
                 raise RuntimeError("SMTP 自动回复失败")
+            self._save_decision_trace(
+                email, "auto_sent", intent, local_knowledge_hits=len(hits),
+                used_web_search=used_web_search, media_count=media_count,
+            )
             self.db.update_status(
                 email.message_id, "replied", reply,
                 notes="使用博查行业通用参考自动发送"
@@ -285,6 +313,13 @@ class EmailAgent:
         path = self.sender.save_draft(
             email.sender, email.subject, reply, self.draft_dir,
             message_id=email.message_id,
+        )
+        self._save_decision_trace(
+            email, "draft_ready", intent, local_knowledge_hits=len(hits),
+            used_web_search=used_web_search, media_count=media_count,
+            blocking_reasons=self._draft_blocking_reasons(
+                allowed, multimodal_observation, media_count, used_web_search,
+            ),
         )
         self.db.update_status(
             email.message_id, "draft_ready", reply, path,
@@ -303,6 +338,7 @@ class EmailAgent:
                 email.message_id, email.subject, email.sender, status="skipped_self",
                 original_body=email.body_text, in_reply_to=email.in_reply_to,
             )
+            self._save_decision_trace(email, "skipped_self", blocking_reasons=["self_message"])
             _safe_print("售后邮箱自身邮件，已跳过以防回复循环")
             self.logger.info(f"跳过自身邮件: {email.message_id}")
             return True
@@ -332,11 +368,19 @@ class EmailAgent:
         )
 
         if self._needs_human(intent, f"{email.subject}\n{email.body_text}"):
+            self._save_decision_trace(
+                email, "escalated", intent, media_count=media_count,
+                blocking_reasons=["business_or_high_risk"],
+            )
             self.db.update_status(email.message_id, "escalated", notes="业务或高风险问题")
             _safe_print("已转人工处理")
             self.logger.info(f"邮件 {email.message_id} 已转人工")
             return True
         if self._visual_requires_human(multimodal_observation, media_count):
+            self._save_decision_trace(
+                email, "escalated", intent, media_count=media_count,
+                blocking_reasons=["visual_risk"], signals=["visual_risk"],
+            )
             self.db.update_status(
                 email.message_id, "escalated",
                 notes="多模态识别发现高风险或低置信度关键信息，已转人工"
@@ -351,6 +395,10 @@ class EmailAgent:
                 "客户邮件中文翻译",
             )
         except Exception as exc:
+            self._save_decision_trace(
+                email, "escalated", intent, media_count=media_count,
+                blocking_reasons=["translation_failed"],
+            )
             self.db.update_status(
                 email.message_id, "escalated", notes=f"未生成有效中文检索文本，已转人工：{exc}"
             )
@@ -390,6 +438,11 @@ class EmailAgent:
                 used_web_search = True
                 self.db.save_retrieval_trace(email.message_id, web_trace)
         if not knowledge:
+            self._save_decision_trace(
+                email, "escalated", intent, local_knowledge_hits=len(hits),
+                used_web_search=used_web_search, media_count=media_count,
+                blocking_reasons=["missing_knowledge"],
+            )
             self.db.update_status(
                 email.message_id, "escalated",
                 notes=f"没有置信度达到 {evidence_threshold:.0%} 的直接知识依据，且无可用通用参考，已转人工"
@@ -409,6 +462,11 @@ class EmailAgent:
                 ), "AI 回复生成"
             )
         except Exception as exc:
+            self._save_decision_trace(
+                email, "escalated", intent, local_knowledge_hits=len(hits),
+                used_web_search=used_web_search, media_count=media_count,
+                blocking_reasons=["reply_generation_failed"],
+            )
             self.db.update_status(
                 email.message_id, "escalated", notes=f"AI 未生成有效回复，已转人工：{exc}"
             )
@@ -425,6 +483,10 @@ class EmailAgent:
                 email.sender, email.subject, reply, email.message_id
             ):
                 raise RuntimeError("SMTP 自动回复失败")
+            self._save_decision_trace(
+                email, "auto_sent", intent, local_knowledge_hits=len(hits),
+                used_web_search=used_web_search, media_count=media_count,
+            )
             self.db.update_status(
                 email.message_id, "replied", reply,
                 notes="使用博查行业通用参考自动发送"
@@ -438,6 +500,13 @@ class EmailAgent:
         path = self.sender.save_draft(
             email.sender, email.subject, reply, self.draft_dir,
             message_id=email.message_id,
+        )
+        self._save_decision_trace(
+            email, "draft_ready", intent, local_knowledge_hits=len(hits),
+            used_web_search=used_web_search, media_count=media_count,
+            blocking_reasons=self._draft_blocking_reasons(
+                allowed, multimodal_observation, media_count, used_web_search,
+            ),
         )
         self.db.update_status(
             email.message_id, "draft_ready", reply, path,
@@ -454,7 +523,54 @@ class EmailAgent:
                 email.message_id, email.subject, email.sender, status="failed",
                 original_body=email.body_text, in_reply_to=email.in_reply_to,
             )
+        self._save_decision_trace(email, "failed", blocking_reasons=["processing_failure"])
         self.db.mark_failed(email.message_id, str(exc))
+
+    def _save_decision_trace(self, email, action: str, intent=None,
+                             local_knowledge_hits: int = 0, used_web_search: bool = False,
+                             media_count: int = 0, blocking_reasons=None, signals=None):
+        """Persist only concise decision metadata, never customer content or model reasoning."""
+        auto_reply_types = self.config.get("workflow", {}).get("auto_reply_types", [])
+        known_intents = set(auto_reply_types)
+        known_intents.update(self.config.get("workflow", {}).get("always_human_types", []))
+        known_intents.update(self.web_search_config.get("allowed_intents", []))
+        known_intents.update({"其他", "其他技术问题", "unknown"})
+        intent_name = getattr(intent, "intent", "unknown")
+        trace_signals = list(signals or [])
+        if used_web_search:
+            trace_signals.append("web_search_fallback")
+        if media_count:
+            trace_signals.append("media_present")
+        if getattr(email, "attachments", []):
+            trace_signals.append("attachments_present")
+        self.db.save_decision_trace(email.message_id, build_decision_trace(
+            action=action,
+            mode=self.mode,
+            intent=intent_name,
+            sentiment=getattr(intent, "sentiment", "unknown"),
+            urgency=getattr(intent, "urgency", "unknown"),
+            auto_allowed_intent=intent_name in auto_reply_types,
+            local_knowledge_hits=local_knowledge_hits,
+            used_web_search=used_web_search,
+            media_count=media_count,
+            attachment_count=len(getattr(email, "attachments", [])),
+            known_intents=known_intents,
+            blocking_reasons=blocking_reasons,
+            signals=list(dict.fromkeys(trace_signals)),
+        ))
+
+    def _draft_blocking_reasons(self, allowed: bool, observation, media_count: int,
+                                used_web_search: bool = False) -> list[str]:
+        reasons = []
+        if not allowed:
+            reasons.append("intent_not_auto_allowed")
+        if getattr(observation, "errors", []):
+            reasons.append("media_processing_error")
+        if media_count and self._visual_requires_human(observation, media_count):
+            reasons.append("visual_risk")
+        if used_web_search and not self.web_search_config.get("auto_send_low_risk", False):
+            reasons.append("web_search_auto_send_disabled")
+        return reasons
 
     @staticmethod
     def _retry(operation, name: str, attempts: int = 3):
