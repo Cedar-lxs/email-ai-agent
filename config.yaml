@@ -89,6 +89,12 @@ multimodal:
   video_frame_count: 3
   analysis_timeout: 90
 
+attachments:
+  # 普通附件会保存到 data/attachments，并对支持的格式提取受限文本。
+  max_attachments_per_email: 8
+  max_attachment_bytes: 10485760
+  max_extracted_chars: 12000
+
 workflow:
   # 运行模式: semi_auto(半自动,生成草稿等审核) / full_auto(全自动)
   mode: "semi_auto"
