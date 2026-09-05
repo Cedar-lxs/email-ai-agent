@@ -109,6 +109,9 @@ if product-specific guidance is needed.
 ## 图片和视频观察
 {multimodal_context}
 
+## 普通附件提取文本
+{attachment_context}
+
 ## 历史对话
 {conversation_history}
 
@@ -275,7 +278,7 @@ class AIProcessor:
 
     def generate_reply(self, subject: str, body: str, intent: IntentResult,
                        knowledge: str = "", history: str = "",
-                       multimodal_context: str = "") -> str:
+                       multimodal_context: str = "", attachment_context: str = "") -> str:
         """生成售后回复邮件"""
         logger.info(f"开始生成回复: subject='{subject[:50]}...', intent={intent.intent}")
         prompt = REPLY_PROMPT.format(
@@ -283,6 +286,7 @@ class AIProcessor:
             company_info=self.company_info,
             knowledge_context=knowledge or "（暂无相关参考）",
             multimodal_context=multimodal_context or "（无图片或视频观察）",
+            attachment_context=attachment_context or "（无可提取附件文本）",
             conversation_history=history or "（首次联系）",
             subject=subject,
             body=body[:3000],
@@ -314,7 +318,7 @@ class AIProcessor:
 
     async def generate_reply_async(self, subject: str, body: str, intent: IntentResult,
                                    knowledge: str = "", history: str = "",
-                                   multimodal_context: str = "") -> str:
+                                   multimodal_context: str = "", attachment_context: str = "") -> str:
         """异步生成售后回复邮件"""
         logger.info(f"开始异步生成回复: subject='{subject[:50]}...', intent={intent.intent}")
         prompt = REPLY_PROMPT.format(
@@ -322,6 +326,7 @@ class AIProcessor:
             company_info=self.company_info,
             knowledge_context=knowledge or "（暂无相关参考）",
             multimodal_context=multimodal_context or "（无图片或视频观察）",
+            attachment_context=attachment_context or "（无可提取附件文本）",
             conversation_history=history or "（首次联系）",
             subject=subject,
             body=body[:3000],

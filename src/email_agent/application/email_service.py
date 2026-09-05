@@ -16,6 +16,7 @@ from email_agent.infrastructure.knowledge.factory import create_retriever
 from email_agent.infrastructure.llm import AIProcessor
 from email_agent.infrastructure.mail_fetcher import MailFetcher
 from email_agent.infrastructure.mail_sender import MailSender
+from email_agent.infrastructure.attachment_storage import AttachmentStorage, format_attachment_context
 from email_agent.infrastructure.media_storage import MediaStorage
 from email_agent.infrastructure.multimodal import MultimodalAnalyzer, format_multimodal_context
 from email_agent.infrastructure.web_search import BochaWebSearchClient
@@ -65,6 +66,9 @@ class EmailAgent:
         self.media_root = paths.data / "media"
         self.media_storage = MediaStorage(
             self.media_root, self.config.get("multimodal", {})
+        )
+        self.attachment_storage = AttachmentStorage(
+            paths.data / "attachments", self.config.get("attachments", {})
         )
         self.multimodal_analyzer = MultimodalAnalyzer(self.config)
 
@@ -173,6 +177,9 @@ class EmailAgent:
         multimodal_observation, multimodal_context, media_count = (
             await self._prepare_multimodal_async(email)
         )
+        stored_attachments, attachment_context, attachment_errors = (
+            await self._prepare_attachments_async(email)
+        )
 
         if self._needs_human(intent, f"{email.subject}\n{email.body_text}"):
             self._save_decision_trace(
@@ -214,16 +221,35 @@ class EmailAgent:
             self.logger.warning(f"邮件 {email.message_id} 翻译失败，已转人工: {exc}")
             return True
 
+        multimodal_terms = self._build_multimodal_retrieval_terms(multimodal_observation)
+        attachment_terms = self._build_attachment_retrieval_terms(stored_attachments)
+        base_identifier_text = (
+            f"{email.subject}\n{email.body_text}\n{translated['subject']}\n"
+            f"{translated['body']}\n{' '.join(translated['keywords'])}"
+        )
         retrieval_query = RetrievalQuery(
+            text="\n".join(filter(None, (translated["body"], attachment_context))),
+            subject=translated["subject"],
+            summary="\n".join(filter(None, (
+                multimodal_observation.summary if multimodal_observation else "",
+                attachment_context,
+            ))),
+            intent=intent.intent,
+            keywords=tuple(translated["keywords"] + multimodal_terms + attachment_terms),
+            identifiers=tuple(dict.fromkeys(self.kb.store._identifiers(
+                f"{base_identifier_text}\n{attachment_context}"
+            ) + self._build_multimodal_identifiers(multimodal_observation))),
+        )
+        web_search_query = RetrievalQuery(
             text=translated["body"],
             subject=translated["subject"],
             summary=multimodal_observation.summary if multimodal_observation else "",
             intent=intent.intent,
-            keywords=tuple(translated["keywords"] + self._build_multimodal_retrieval_terms(multimodal_observation)),
-            identifiers=tuple(dict.fromkeys(self.kb.store._identifiers(
-                f"{email.subject}\n{email.body_text}\n{translated['subject']}\n"
-                f"{translated['body']}\n{' '.join(translated['keywords'])}"
-            ) + self._build_multimodal_identifiers(multimodal_observation))),
+            keywords=tuple(translated["keywords"] + multimodal_terms + attachment_terms),
+            identifiers=tuple(dict.fromkeys(
+                self.kb.store._identifiers(base_identifier_text)
+                + self._build_multimodal_identifiers(multimodal_observation)
+            )),
         )
         hits = self.retriever.retrieve(retrieval_query, self.top_k)
         evidence_threshold = float(self.config.get("rag", {}).get("min_confidence", 0.75))
@@ -239,8 +265,8 @@ class EmailAgent:
         )
         knowledge = KnowledgeContextFormatter.format(hits)
         used_web_search = False
-        if not hits and self._can_use_web_search(intent, retrieval_query):
-            web_context, web_trace = await self._search_web_context_async(retrieval_query)
+        if not hits and self._can_use_web_search(intent, web_search_query):
+            web_context, web_trace = await self._search_web_context_async(web_search_query)
             if web_context:
                 knowledge = web_context
                 used_web_search = True
@@ -269,7 +295,8 @@ class EmailAgent:
             reply = await self._retry_async(
                 lambda: self.ai.generate_reply_async(
                     email.subject, email.body_text, intent, knowledge,
-                    history=history, multimodal_context=multimodal_context
+                    history=history, multimodal_context=multimodal_context,
+                    attachment_context=attachment_context,
                 ), "AI 回复生成"
             )
         except Exception as exc:
@@ -287,7 +314,7 @@ class EmailAgent:
 
         allowed = intent.intent in self.config["workflow"]["auto_reply_types"]
         can_auto_send = self._can_auto_send(
-            allowed, used_web_search, media_count, multimodal_observation
+            allowed, used_web_search, media_count, multimodal_observation, attachment_errors
         )
         if can_auto_send:
             sent = await asyncio.to_thread(
@@ -319,6 +346,7 @@ class EmailAgent:
             used_web_search=used_web_search, media_count=media_count,
             blocking_reasons=self._draft_blocking_reasons(
                 allowed, multimodal_observation, media_count, used_web_search,
+                attachment_errors,
             ),
         )
         self.db.update_status(
@@ -366,6 +394,9 @@ class EmailAgent:
         multimodal_observation, multimodal_context, media_count = (
             self._prepare_multimodal(email)
         )
+        stored_attachments, attachment_context, attachment_errors = (
+            self._prepare_attachments(email)
+        )
 
         if self._needs_human(intent, f"{email.subject}\n{email.body_text}"):
             self._save_decision_trace(
@@ -406,16 +437,35 @@ class EmailAgent:
             self.logger.warning(f"邮件 {email.message_id} 翻译失败，已转人工: {exc}")
             return True
 
+        multimodal_terms = self._build_multimodal_retrieval_terms(multimodal_observation)
+        attachment_terms = self._build_attachment_retrieval_terms(stored_attachments)
+        base_identifier_text = (
+            f"{email.subject}\n{email.body_text}\n{translated['subject']}\n"
+            f"{translated['body']}\n{' '.join(translated['keywords'])}"
+        )
         retrieval_query = RetrievalQuery(
+            text="\n".join(filter(None, (translated["body"], attachment_context))),
+            subject=translated["subject"],
+            summary="\n".join(filter(None, (
+                multimodal_observation.summary if multimodal_observation else "",
+                attachment_context,
+            ))),
+            intent=intent.intent,
+            keywords=tuple(translated["keywords"] + multimodal_terms + attachment_terms),
+            identifiers=tuple(dict.fromkeys(self.kb.store._identifiers(
+                f"{base_identifier_text}\n{attachment_context}"
+            ) + self._build_multimodal_identifiers(multimodal_observation))),
+        )
+        web_search_query = RetrievalQuery(
             text=translated["body"],
             subject=translated["subject"],
             summary=multimodal_observation.summary if multimodal_observation else "",
             intent=intent.intent,
-            keywords=tuple(translated["keywords"] + self._build_multimodal_retrieval_terms(multimodal_observation)),
-            identifiers=tuple(dict.fromkeys(self.kb.store._identifiers(
-                f"{email.subject}\n{email.body_text}\n{translated['subject']}\n"
-                f"{translated['body']}\n{' '.join(translated['keywords'])}"
-            ) + self._build_multimodal_identifiers(multimodal_observation))),
+            keywords=tuple(translated["keywords"] + multimodal_terms + attachment_terms),
+            identifiers=tuple(dict.fromkeys(
+                self.kb.store._identifiers(base_identifier_text)
+                + self._build_multimodal_identifiers(multimodal_observation)
+            )),
         )
         hits = self.retriever.retrieve(retrieval_query, self.top_k)
         evidence_threshold = float(self.config.get("rag", {}).get("min_confidence", 0.75))
@@ -431,8 +481,8 @@ class EmailAgent:
         )
         knowledge = KnowledgeContextFormatter.format(hits)
         used_web_search = False
-        if not hits and self._can_use_web_search(intent, retrieval_query):
-            web_context, web_trace = self._search_web_context(retrieval_query)
+        if not hits and self._can_use_web_search(intent, web_search_query):
+            web_context, web_trace = self._search_web_context(web_search_query)
             if web_context:
                 knowledge = web_context
                 used_web_search = True
@@ -458,7 +508,8 @@ class EmailAgent:
             reply = self._retry(
                 lambda: self.ai.generate_reply(
                     email.subject, email.body_text, intent, knowledge,
-                    history=history, multimodal_context=multimodal_context
+                    history=history, multimodal_context=multimodal_context,
+                    attachment_context=attachment_context,
                 ), "AI 回复生成"
             )
         except Exception as exc:
@@ -476,7 +527,7 @@ class EmailAgent:
 
         allowed = intent.intent in self.config["workflow"]["auto_reply_types"]
         can_auto_send = self._can_auto_send(
-            allowed, used_web_search, media_count, multimodal_observation
+            allowed, used_web_search, media_count, multimodal_observation, attachment_errors
         )
         if can_auto_send:
             if not self.sender.send_reply(
@@ -506,6 +557,7 @@ class EmailAgent:
             used_web_search=used_web_search, media_count=media_count,
             blocking_reasons=self._draft_blocking_reasons(
                 allowed, multimodal_observation, media_count, used_web_search,
+                attachment_errors,
             ),
         )
         self.db.update_status(
@@ -560,7 +612,8 @@ class EmailAgent:
         ))
 
     def _draft_blocking_reasons(self, allowed: bool, observation, media_count: int,
-                                used_web_search: bool = False) -> list[str]:
+                                used_web_search: bool = False,
+                                attachment_errors: list[str] | None = None) -> list[str]:
         reasons = []
         if not allowed:
             reasons.append("intent_not_auto_allowed")
@@ -570,6 +623,8 @@ class EmailAgent:
             reasons.append("visual_risk")
         if used_web_search and not self.web_search_config.get("auto_send_low_risk", False):
             reasons.append("web_search_auto_send_disabled")
+        if attachment_errors:
+            reasons.append("attachment_processing_error")
         return reasons
 
     @staticmethod
@@ -717,6 +772,25 @@ class EmailAgent:
         self.db.save_multimodal_trace(email.message_id, trace)
         return observation, format_multimodal_context(observation), len(stored)
 
+    async def _prepare_attachments_async(self, email):
+        return await asyncio.to_thread(self._prepare_attachments, email)
+
+    def _prepare_attachments(self, email):
+        attachments = getattr(email, "attachments", [])
+        if not attachments:
+            return [], "", []
+        stored, storage_errors = self.attachment_storage.save(email.message_id, attachments)
+        self.db.save_attachment_manifest(
+            email.message_id, self.attachment_storage.manifest(stored)
+        )
+        errors = list(storage_errors)
+        errors.extend(
+            f"{item.filename}: {item.extraction_error or '附件提取失败'}"
+            for item in stored if item.extraction_status == "extraction_failed"
+        )
+        max_chars = int(self.config.get("attachments", {}).get("max_extracted_chars", 12000))
+        return stored, format_attachment_context(stored, max_chars), errors
+
     @staticmethod
     def _multimodal_trace(observation) -> dict:
         if not observation:
@@ -755,6 +829,15 @@ class EmailAgent:
         ))
 
     @staticmethod
+    def _build_attachment_retrieval_terms(stored_attachments) -> list[str]:
+        terms = []
+        for item in stored_attachments:
+            filename = Path(item.filename).stem.strip()
+            if filename:
+                terms.append(filename)
+        return list(dict.fromkeys(terms))
+
+    @staticmethod
     def _visual_requires_human(observation, media_count: int = 0) -> bool:
         if not observation:
             return False
@@ -772,10 +855,13 @@ class EmailAgent:
         return False
 
     def _can_auto_send(self, allowed: bool, used_web_search: bool, media_count: int = 0,
-                       multimodal_observation=None) -> bool:
+                       multimodal_observation=None,
+                       attachment_errors: list[str] | None = None) -> bool:
         if not allowed or self.mode != "full_auto":
             return False
         if bool(getattr(multimodal_observation, "errors", [])):
+            return False
+        if attachment_errors:
             return False
         if media_count and (
             self._visual_requires_human(multimodal_observation, media_count)

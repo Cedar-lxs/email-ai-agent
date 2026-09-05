@@ -9,6 +9,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from email_agent.application.email_service import EmailAgent
 from email_agent.domain.models import (
+    EmailAttachment,
     EmailMedia,
     IntentResult,
     KnowledgeHit,
@@ -16,6 +17,7 @@ from email_agent.domain.models import (
     ParsedEmail,
     StoredMedia,
 )
+from email_agent.infrastructure.attachment_storage import StoredAttachment
 from email_agent.infrastructure.database import EmailDB
 
 
@@ -77,6 +79,42 @@ class MultimodalEmailServiceTests(unittest.IsolatedAsyncioTestCase):
                     size_bytes=4, data=b"data",
                 )
             ],
+        )
+
+    def email_with_attachment(self):
+        email = self.email()
+        email.media = []
+        email.attachments = [
+            EmailAttachment(
+                "attachment-1", "diagnosis.txt", "text/plain", "attachment",
+                size_bytes=34, data=b"serial GS105\nlink state disconnected",
+            )
+        ]
+        return email
+
+    def attach_storage_result(self, agent, stored, errors=None):
+        agent.attachment_storage = SimpleNamespace(
+            save=Mock(return_value=(stored, errors or [])),
+            manifest=Mock(return_value=[{
+                "attachment_id": item.attachment_id,
+                "filename": item.filename,
+                "content_type": item.content_type,
+                "source": item.source,
+                "path": item.path,
+                "size_bytes": item.size_bytes,
+                "extracted_text": item.extracted_text,
+                "extraction_status": item.extraction_status,
+                "extraction_error": item.extraction_error,
+                "metadata": item.metadata,
+            } for item in stored]),
+        )
+
+    def readable_attachment(self):
+        return StoredAttachment(
+            "attachment-1", "diagnosis.txt", "text/plain", "attachment",
+            str(self.temp_root / "diagnosis.txt"), 34,
+            extracted_text="serial GS105\nlink state disconnected",
+            extraction_status="extracted",
         )
 
     def agent(self, observation, mode="semi_auto"):
@@ -176,6 +214,92 @@ class MultimodalEmailServiceTests(unittest.IsolatedAsyncioTestCase):
             agent.ai.generate_reply_async.call_args.kwargs["multimodal_context"],
         )
         self.assertIn("gs105", query.identifiers)
+
+    async def test_low_risk_full_auto_email_with_readable_attachment_sends_reply(self):
+        agent = self.agent(MultimodalObservation(), mode="full_auto")
+        self.attach_storage_result(agent, [self.readable_attachment()])
+
+        completed = await agent._process_email_async(self.email_with_attachment())
+
+        self.assertTrue(completed)
+        row = self.db.get_email("m1")
+        self.assertEqual(row["status"], "replied")
+        self.assertEqual(
+            self.db.parse_attachment_manifest(row)[0]["extraction_status"], "extracted",
+        )
+        agent.sender.send_reply.assert_called_once()
+
+    async def test_attachment_extraction_error_creates_draft_instead_of_auto_sending(self):
+        agent = self.agent(MultimodalObservation(), mode="full_auto")
+        broken = StoredAttachment(
+            "attachment-1", "broken.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "attachment", str(self.temp_root / "broken.docx"), 12,
+            extraction_status="extraction_failed", extraction_error="invalid docx",
+        )
+        self.attach_storage_result(agent, [broken])
+
+        completed = await agent._process_email_async(self.email_with_attachment())
+
+        self.assertTrue(completed)
+        row = self.db.get_email("m1")
+        self.assertEqual(row["status"], "draft_ready")
+        self.assertIn("attachment_processing_error", self.db.parse_decision_trace(row)["blocking_reasons"])
+        agent.sender.send_reply.assert_not_called()
+
+    async def test_retrieval_query_includes_extracted_attachment_text(self):
+        agent = self.agent(MultimodalObservation())
+        self.attach_storage_result(agent, [self.readable_attachment()])
+
+        await agent._process_email_async(self.email_with_attachment())
+
+        query = agent.retriever.queries[0]
+        self.assertIn("link state disconnected", query.text)
+        self.assertIn("diagnosis", query.keywords)
+
+    async def test_reply_generation_receives_attachment_context(self):
+        agent = self.agent(MultimodalObservation())
+        self.attach_storage_result(agent, [self.readable_attachment()])
+
+        await agent._process_email_async(self.email_with_attachment())
+
+        attachment_context = agent.ai.generate_reply_async.call_args.kwargs["attachment_context"]
+        self.assertIn("diagnosis.txt", attachment_context)
+        self.assertIn("link state disconnected", attachment_context)
+
+    async def test_web_search_query_excludes_attachment_extracted_text(self):
+        agent = self.agent(MultimodalObservation(), mode="full_auto")
+        agent.retriever = EmptyRetriever()
+        agent.kb = agent.retriever
+        sensitive = StoredAttachment(
+            "attachment-1", "diagnosis.txt", "text/plain", "attachment",
+            str(self.temp_root / "diagnosis.txt"), 64,
+            extracted_text="secret_token_ABC123 link state disconnected",
+            extraction_status="extracted",
+        )
+        self.attach_storage_result(agent, [sensitive])
+        agent.web_search = SimpleNamespace(
+            available=True,
+            search=Mock(return_value=[
+                SimpleNamespace(
+                    title="Switch troubleshooting",
+                    snippet="Check Ethernet cable and link light.",
+                    url="https://example.com/switch-guide",
+                )
+            ]),
+        )
+        agent.web_search_config = {
+            "allowed_intents": ["网络连接"],
+            "auto_send_low_risk": True,
+        }
+
+        await agent._process_email_async(self.email_with_attachment())
+
+        local_query = agent.retriever.queries[0]
+        web_query = agent.web_search.search.call_args.args[0]
+        self.assertIn("secret_token_ABC123", local_query.text)
+        self.assertNotIn("secret_token_ABC123", web_query)
+        self.assertNotIn("link state disconnected", web_query)
+        self.assertIn("diagnosis", web_query)
 
     async def test_visual_risk_signals_escalate_before_reply_generation(self):
         observation = MultimodalObservation(

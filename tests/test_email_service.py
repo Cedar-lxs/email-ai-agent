@@ -167,6 +167,17 @@ class AsyncEmailServiceTests(unittest.IsolatedAsyncioTestCase):
             agent._draft_blocking_reasons(True, None, 0, used_web_search=True),
         )
 
+    def test_full_auto_blocks_send_when_attachment_processing_has_errors(self):
+        agent = EmailAgent.__new__(EmailAgent)
+        agent.mode = "full_auto"
+        agent.web_search_config = {"auto_send_low_risk": True}
+
+        can_send = agent._can_auto_send(
+            True, False, attachment_errors=["broken.docx: invalid document"],
+        )
+
+        self.assertFalse(can_send)
+
     async def test_mail_fetcher_async_methods_delegate_blocking_imap_calls(self):
         fetcher = MailFetcher("imap.example.com", 993, "agent@example.com", "secret")
         fetcher.connect = Mock()
