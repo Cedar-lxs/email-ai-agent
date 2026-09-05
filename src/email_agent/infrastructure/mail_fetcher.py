@@ -10,7 +10,7 @@ from email.header import decode_header
 from email.utils import parsedate_to_datetime
 import re
 
-from email_agent.domain.models import EmailMedia, ParsedEmail
+from email_agent.domain.models import EmailAttachment, EmailMedia, ParsedEmail
 
 
 class MailFetcher:
@@ -133,6 +133,7 @@ class MailFetcher:
         body_text = ""
         body_html = ""
         media_items = []
+        attachment_items = []
 
         if msg.is_multipart():
             for part in msg.walk():
@@ -142,18 +143,20 @@ class MailFetcher:
                 charset = part.get_content_charset() or "utf-8"
                 payload = part.get_payload(decode=True)
 
-                if not payload:
+                if payload is None:
                     continue
 
-                extracted = self._media_from_part(
-                    part, payload, len(media_items) + 1
-                )
-                if extracted:
-                    media_items.append(extracted)
-                    continue
+                if payload:
+                    extracted = self._media_from_part(
+                        part, payload, len(media_items) + 1
+                    )
+                    if extracted:
+                        media_items.append(extracted)
+                        continue
 
-                # 跳过非媒体附件
-                if "attachment" in disposition:
+                attachment = self._attachment_from_part(part, payload)
+                if attachment:
+                    attachment_items.append(attachment)
                     continue
 
                 try:
@@ -191,6 +194,7 @@ class MailFetcher:
             received_at=received_at,
             in_reply_to=in_reply_to,
             media=media_items,
+            attachments=attachment_items,
         )
 
     # ============================================================
@@ -229,6 +233,32 @@ class MailFetcher:
             suffix = content_id or str(index)
             filename = f"{prefix}-{suffix}{extension}"
         return self._build_media(filename, content_type, source, content_id, payload)
+
+    def _attachment_from_part(self, part, payload: bytes) -> EmailAttachment | None:
+        disposition = str(part.get("Content-Disposition", "")).lower()
+        filename = self._decode_filename(part.get_filename())
+        if "attachment" not in disposition and not filename:
+            return None
+
+        content_type = part.get_content_type().lower()
+        source = "attachment" if "attachment" in disposition or filename else "inline_attachment"
+        if not filename:
+            filename = "attachment.bin"
+        fingerprint = b"\x1f".join([
+            source.encode("utf-8"),
+            filename.encode("utf-8", errors="replace"),
+            content_type.encode("ascii", errors="replace"),
+            payload,
+        ])
+        attachment_id = hashlib.sha256(fingerprint).hexdigest()[:32]
+        return EmailAttachment(
+            attachment_id=attachment_id,
+            filename=filename,
+            content_type=content_type,
+            source=source,
+            size_bytes=len(payload),
+            data=payload,
+        )
 
     def _media_from_html_data_urls(self, html: str, start_index: int) -> list[EmailMedia]:
         if not html:

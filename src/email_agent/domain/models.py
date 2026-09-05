@@ -16,6 +16,17 @@ class EmailMedia:
 
 
 @dataclass
+class EmailAttachment:
+    attachment_id: str
+    filename: str
+    content_type: str
+    source: str
+    size_bytes: int = 0
+    data: bytes = b""
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
 class ParsedEmail:
     message_id: str
     subject: str
@@ -27,6 +38,7 @@ class ParsedEmail:
     in_reply_to: str = ""
     imap_uid: str = ""
     media: list[EmailMedia] = field(default_factory=list)
+    attachments: list[EmailAttachment] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
