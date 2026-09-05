@@ -19,6 +19,7 @@ from email_agent.domain.models import (
 )
 from email_agent.infrastructure.attachment_storage import StoredAttachment
 from email_agent.infrastructure.database import EmailDB
+from email_agent.infrastructure.product_index import ProductRecord
 
 
 class DummyRetriever:
@@ -407,6 +408,29 @@ class MultimodalEmailServiceTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(decision_trace["action"], "auto_sent")
         self.assertTrue(decision_trace["used_web_search"])
         agent.sender.send_reply.assert_called_once()
+
+    async def test_product_management_conflict_blocks_full_auto_send_and_records_reason(self):
+        observation = MultimodalObservation(
+            product_identifiers=["GS105"],
+            model_numbers=["GS105"],
+            switch_management_type="unmanaged",
+            confidence=0.92,
+        )
+        agent = self.agent(observation, mode="full_auto")
+        agent.product_index = SimpleNamespace(find=Mock(return_value=[
+            ProductRecord(
+                model="GS105", management_type="managed",
+                ports=["5 Gigabit RJ45"], source="products.vector.json",
+            )
+        ]))
+
+        completed = await agent._process_email_async(self.email())
+
+        self.assertTrue(completed)
+        row = self.db.get_email("m1")
+        self.assertEqual(row["status"], "draft_ready")
+        self.assertIn("product_conflict", self.db.parse_decision_trace(row)["blocking_reasons"])
+        agent.sender.send_reply.assert_not_called()
 
 
 if __name__ == "__main__":

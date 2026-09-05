@@ -95,6 +95,10 @@ attachments:
   max_attachment_bytes: 10485760
   max_extracted_chars: 12000
 
+product_index:
+  # 补充本地 RAG：从产品结构化数据和说明书中提取型号、端口、PoE 和管理类型。
+  enabled: true
+
 workflow:
   # 运行模式: semi_auto(半自动,生成草稿等审核) / full_auto(全自动)
   mode: "semi_auto"

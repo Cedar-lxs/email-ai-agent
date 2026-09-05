@@ -19,6 +19,11 @@ from email_agent.infrastructure.mail_sender import MailSender
 from email_agent.infrastructure.attachment_storage import AttachmentStorage, format_attachment_context
 from email_agent.infrastructure.media_storage import MediaStorage
 from email_agent.infrastructure.multimodal import MultimodalAnalyzer, format_multimodal_context
+from email_agent.infrastructure.product_index import (
+    ProductIndex,
+    detect_product_conflicts,
+    format_product_context,
+)
 from email_agent.infrastructure.web_search import BochaWebSearchClient
 from email_agent.paths import get_project_paths, resolve_from_root
 from email_agent.application.review_service import ReviewService
@@ -71,6 +76,10 @@ class EmailAgent:
             paths.data / "attachments", self.config.get("attachments", {})
         )
         self.multimodal_analyzer = MultimodalAnalyzer(self.config)
+        product_index_config = self.config.get("product_index", {})
+        self.product_index = ProductIndex.from_knowledge(paths.knowledge) if (
+            product_index_config.get("enabled", True)
+        ) else ProductIndex()
 
         # 并发处理配置
         self.max_concurrent = int(self.config.get("processing", {}).get("max_concurrent", 3))
@@ -227,25 +236,30 @@ class EmailAgent:
             f"{email.subject}\n{email.body_text}\n{translated['subject']}\n"
             f"{translated['body']}\n{' '.join(translated['keywords'])}"
         )
+        identifiers = list(dict.fromkeys(self.kb.store._identifiers(
+            f"{base_identifier_text}\n{attachment_context}"
+        ) + self._build_multimodal_identifiers(multimodal_observation)))
+        product_records = self._find_products(identifiers)
+        product_context = format_product_context(product_records)
+        product_conflicts = detect_product_conflicts(product_records, multimodal_observation)
+        product_terms = self._build_product_retrieval_terms(product_records)
         retrieval_query = RetrievalQuery(
-            text="\n".join(filter(None, (translated["body"], attachment_context))),
+            text="\n".join(filter(None, (translated["body"], attachment_context, product_context))),
             subject=translated["subject"],
             summary="\n".join(filter(None, (
                 multimodal_observation.summary if multimodal_observation else "",
-                attachment_context,
+                attachment_context, product_context,
             ))),
             intent=intent.intent,
-            keywords=tuple(translated["keywords"] + multimodal_terms + attachment_terms),
-            identifiers=tuple(dict.fromkeys(self.kb.store._identifiers(
-                f"{base_identifier_text}\n{attachment_context}"
-            ) + self._build_multimodal_identifiers(multimodal_observation))),
+            keywords=tuple(translated["keywords"] + multimodal_terms + attachment_terms + product_terms),
+            identifiers=tuple(identifiers),
         )
         web_search_query = RetrievalQuery(
             text=translated["body"],
             subject=translated["subject"],
             summary=multimodal_observation.summary if multimodal_observation else "",
             intent=intent.intent,
-            keywords=tuple(translated["keywords"] + multimodal_terms + attachment_terms),
+            keywords=tuple(translated["keywords"] + multimodal_terms + attachment_terms + product_terms),
             identifiers=tuple(dict.fromkeys(
                 self.kb.store._identifiers(base_identifier_text)
                 + self._build_multimodal_identifiers(multimodal_observation)
@@ -263,7 +277,7 @@ class EmailAgent:
                           "score": hit.score} for hit in hits],
             })
         )
-        knowledge = KnowledgeContextFormatter.format(hits)
+        knowledge = "\n\n".join(filter(None, (KnowledgeContextFormatter.format(hits), product_context)))
         used_web_search = False
         if not hits and self._can_use_web_search(intent, web_search_query):
             web_context, web_trace = await self._search_web_context_async(web_search_query)
@@ -295,7 +309,7 @@ class EmailAgent:
             reply = await self._retry_async(
                 lambda: self.ai.generate_reply_async(
                     email.subject, email.body_text, intent, knowledge,
-                    history=history, multimodal_context=multimodal_context,
+                    history=history, multimodal_context="\n".join(filter(None, (multimodal_context, product_context))),
                     attachment_context=attachment_context,
                 ), "AI 回复生成"
             )
@@ -314,7 +328,8 @@ class EmailAgent:
 
         allowed = intent.intent in self.config["workflow"]["auto_reply_types"]
         can_auto_send = self._can_auto_send(
-            allowed, used_web_search, media_count, multimodal_observation, attachment_errors
+            allowed, used_web_search, media_count, multimodal_observation, attachment_errors,
+            product_conflicts,
         )
         if can_auto_send:
             sent = await asyncio.to_thread(
@@ -346,7 +361,7 @@ class EmailAgent:
             used_web_search=used_web_search, media_count=media_count,
             blocking_reasons=self._draft_blocking_reasons(
                 allowed, multimodal_observation, media_count, used_web_search,
-                attachment_errors,
+                attachment_errors, product_conflicts,
             ),
         )
         self.db.update_status(
@@ -443,25 +458,30 @@ class EmailAgent:
             f"{email.subject}\n{email.body_text}\n{translated['subject']}\n"
             f"{translated['body']}\n{' '.join(translated['keywords'])}"
         )
+        identifiers = list(dict.fromkeys(self.kb.store._identifiers(
+            f"{base_identifier_text}\n{attachment_context}"
+        ) + self._build_multimodal_identifiers(multimodal_observation)))
+        product_records = self._find_products(identifiers)
+        product_context = format_product_context(product_records)
+        product_conflicts = detect_product_conflicts(product_records, multimodal_observation)
+        product_terms = self._build_product_retrieval_terms(product_records)
         retrieval_query = RetrievalQuery(
-            text="\n".join(filter(None, (translated["body"], attachment_context))),
+            text="\n".join(filter(None, (translated["body"], attachment_context, product_context))),
             subject=translated["subject"],
             summary="\n".join(filter(None, (
                 multimodal_observation.summary if multimodal_observation else "",
-                attachment_context,
+                attachment_context, product_context,
             ))),
             intent=intent.intent,
-            keywords=tuple(translated["keywords"] + multimodal_terms + attachment_terms),
-            identifiers=tuple(dict.fromkeys(self.kb.store._identifiers(
-                f"{base_identifier_text}\n{attachment_context}"
-            ) + self._build_multimodal_identifiers(multimodal_observation))),
+            keywords=tuple(translated["keywords"] + multimodal_terms + attachment_terms + product_terms),
+            identifiers=tuple(identifiers),
         )
         web_search_query = RetrievalQuery(
             text=translated["body"],
             subject=translated["subject"],
             summary=multimodal_observation.summary if multimodal_observation else "",
             intent=intent.intent,
-            keywords=tuple(translated["keywords"] + multimodal_terms + attachment_terms),
+            keywords=tuple(translated["keywords"] + multimodal_terms + attachment_terms + product_terms),
             identifiers=tuple(dict.fromkeys(
                 self.kb.store._identifiers(base_identifier_text)
                 + self._build_multimodal_identifiers(multimodal_observation)
@@ -479,7 +499,7 @@ class EmailAgent:
                           "score": hit.score} for hit in hits],
             })
         )
-        knowledge = KnowledgeContextFormatter.format(hits)
+        knowledge = "\n\n".join(filter(None, (KnowledgeContextFormatter.format(hits), product_context)))
         used_web_search = False
         if not hits and self._can_use_web_search(intent, web_search_query):
             web_context, web_trace = self._search_web_context(web_search_query)
@@ -508,7 +528,7 @@ class EmailAgent:
             reply = self._retry(
                 lambda: self.ai.generate_reply(
                     email.subject, email.body_text, intent, knowledge,
-                    history=history, multimodal_context=multimodal_context,
+                    history=history, multimodal_context="\n".join(filter(None, (multimodal_context, product_context))),
                     attachment_context=attachment_context,
                 ), "AI 回复生成"
             )
@@ -527,7 +547,8 @@ class EmailAgent:
 
         allowed = intent.intent in self.config["workflow"]["auto_reply_types"]
         can_auto_send = self._can_auto_send(
-            allowed, used_web_search, media_count, multimodal_observation, attachment_errors
+            allowed, used_web_search, media_count, multimodal_observation, attachment_errors,
+            product_conflicts,
         )
         if can_auto_send:
             if not self.sender.send_reply(
@@ -557,7 +578,7 @@ class EmailAgent:
             used_web_search=used_web_search, media_count=media_count,
             blocking_reasons=self._draft_blocking_reasons(
                 allowed, multimodal_observation, media_count, used_web_search,
-                attachment_errors,
+                attachment_errors, product_conflicts,
             ),
         )
         self.db.update_status(
@@ -613,7 +634,8 @@ class EmailAgent:
 
     def _draft_blocking_reasons(self, allowed: bool, observation, media_count: int,
                                 used_web_search: bool = False,
-                                attachment_errors: list[str] | None = None) -> list[str]:
+                                attachment_errors: list[str] | None = None,
+                                product_conflicts: list[str] | None = None) -> list[str]:
         reasons = []
         if not allowed:
             reasons.append("intent_not_auto_allowed")
@@ -625,6 +647,8 @@ class EmailAgent:
             reasons.append("web_search_auto_send_disabled")
         if attachment_errors:
             reasons.append("attachment_processing_error")
+        if product_conflicts:
+            reasons.extend(product_conflicts)
         return reasons
 
     @staticmethod
@@ -837,6 +861,19 @@ class EmailAgent:
                 terms.append(filename)
         return list(dict.fromkeys(terms))
 
+    def _find_products(self, identifiers: list[str]):
+        index = getattr(self, "product_index", None)
+        return index.find(identifiers) if index else []
+
+    @staticmethod
+    def _build_product_retrieval_terms(records) -> list[str]:
+        terms = []
+        for record in records:
+            terms.extend([record.model, record.family, record.management_type, record.poe])
+            terms.extend(record.ports)
+            terms.extend(record.versions)
+        return list(dict.fromkeys(str(term).strip() for term in terms if str(term).strip()))
+
     @staticmethod
     def _visual_requires_human(observation, media_count: int = 0) -> bool:
         if not observation:
@@ -856,12 +893,15 @@ class EmailAgent:
 
     def _can_auto_send(self, allowed: bool, used_web_search: bool, media_count: int = 0,
                        multimodal_observation=None,
-                       attachment_errors: list[str] | None = None) -> bool:
+                       attachment_errors: list[str] | None = None,
+                       product_conflicts: list[str] | None = None) -> bool:
         if not allowed or self.mode != "full_auto":
             return False
         if bool(getattr(multimodal_observation, "errors", [])):
             return False
         if attachment_errors:
+            return False
+        if product_conflicts:
             return False
         if media_count and (
             self._visual_requires_human(multimodal_observation, media_count)
