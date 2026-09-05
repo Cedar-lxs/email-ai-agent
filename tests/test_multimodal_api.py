@@ -38,6 +38,7 @@ class MultimodalApiTests(unittest.TestCase):
         fake_fetcher = SimpleNamespace(connect=lambda: None, disconnect=lambda: None)
         fake_ai = SimpleNamespace(_call_llm=lambda prompt, max_tokens: "OK")
         media_root = self.temp_root / "media"
+        attachment_root = self.temp_root / "attachments"
         agent = SimpleNamespace(
             db=self.db,
             sender=sender,
@@ -45,6 +46,7 @@ class MultimodalApiTests(unittest.TestCase):
             retriever=retriever,
             kb=retriever,
             media_root=media_root,
+            attachment_storage=SimpleNamespace(root=attachment_root),
             config={
                 "workflow": {"mode": "semi_auto", "auto_reply_types": ["故障排查"]},
                 "mail": {"account": "agent@test", "password": "secret", "imap_server": "imap.test",
@@ -123,6 +125,75 @@ class MultimodalApiTests(unittest.TestCase):
         self.assertEqual(payload["multimodal"]["versions"], ["Ver: 2.1"])
         self.assertEqual(payload["multimodal"]["switch_management_type"], "unmanaged")
         self.assertEqual(payload["multimodal"]["label_text"], ["Unmanaged Switch GS105 Ver: 2.1"])
+
+    def test_mail_detail_includes_decision_and_attachment_manifest(self):
+        self.db.save_decision_trace("m1", {
+            "action": "draft_ready",
+            "blocking_reasons": ["semi_auto_mode"],
+            "local_knowledge_hits": 2,
+        })
+        self.db.save_attachment_manifest("m1", [{
+            "attachment_id": "report-1",
+            "filename": "diagnosis.txt",
+            "content_type": "text/plain",
+            "size_bytes": 24,
+            "extraction_status": "extracted",
+            "extracted_text": "link state disconnected",
+        }])
+
+        response = self.client.get("/api/mails/m1", headers=self.auth_headers)
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertEqual(payload["decision"]["action"], "draft_ready")
+        self.assertEqual(payload["attachments"][0]["attachment_id"], "report-1")
+
+    def test_attachment_route_serves_manifest_file_under_attachment_root(self):
+        attachment_dir = self.temp_root / "attachments" / "m1"
+        attachment_dir.mkdir(parents=True)
+        attachment_path = attachment_dir / "diagnosis.txt"
+        attachment_path.write_bytes(b"link state disconnected")
+        self.db.save_attachment_manifest("m1", [{
+            "attachment_id": "report-1",
+            "filename": "diagnosis.txt",
+            "content_type": "text/plain",
+            "path": str(attachment_path),
+            "size_bytes": 23,
+        }])
+
+        response = self.client.get(
+            "/api/mails/m1/attachments/report-1", headers=self.auth_headers
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data, b"link state disconnected")
+        self.assertEqual(response.mimetype, "text/plain")
+        response.close()
+
+    def test_attachment_route_refuses_unlisted_or_outside_root_files(self):
+        attachment_dir = self.temp_root / "attachments" / "m1"
+        attachment_dir.mkdir(parents=True)
+        listed_path = attachment_dir / "listed.txt"
+        listed_path.write_bytes(b"listed")
+        outside_path = self.temp_root / "outside.txt"
+        outside_path.write_bytes(b"outside")
+        self.db.save_attachment_manifest("m1", [{
+            "attachment_id": "outside-1",
+            "filename": "outside.txt",
+            "content_type": "text/plain",
+            "path": str(outside_path),
+            "size_bytes": 7,
+        }])
+
+        unlisted = self.client.get(
+            "/api/mails/m1/attachments/not-listed", headers=self.auth_headers
+        )
+        outside = self.client.get(
+            "/api/mails/m1/attachments/outside-1", headers=self.auth_headers
+        )
+
+        self.assertEqual(unlisted.status_code, 404)
+        self.assertEqual(outside.status_code, 404)
 
     def test_media_route_serves_manifest_file(self):
         directory = self.temp_root / "media" / "msg"

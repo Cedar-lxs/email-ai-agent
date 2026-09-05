@@ -70,6 +70,67 @@
         </el-col>
       </el-row>
 
+      <el-card class="decision-card">
+        <template #header>
+          <div class="card-header">
+            <span class="section-index">03</span>
+            <h3>处理决策</h3>
+            <small>处理过程摘要</small>
+          </div>
+        </template>
+        <el-descriptions :column="2" border size="small" class="decision-details">
+          <el-descriptions-item label="最终动作">
+            <el-tag :type="getStatusType(decision.action || mail.status)" size="small">
+              {{ decisionActionLabel(decision.action || mail.status) }}
+            </el-tag>
+          </el-descriptions-item>
+          <el-descriptions-item label="本地知识">
+            {{ Number(decision.local_knowledge_hits || 0) }} 条
+          </el-descriptions-item>
+          <el-descriptions-item label="博查检索">
+            {{ decision.used_web_search ? '已使用' : '未使用' }}
+          </el-descriptions-item>
+          <el-descriptions-item label="媒体 / 附件">
+            {{ Number(decision.media_count ?? media.length) }} / {{ Number(decision.attachment_count ?? attachments.length) }}
+          </el-descriptions-item>
+          <el-descriptions-item label="阻断原因" :span="2">
+            <div class="tag-list">
+              <el-tag v-for="reason in decision.blocking_reasons || []" :key="reason" type="warning" size="small">{{ reason }}</el-tag>
+              <span v-if="!(decision.blocking_reasons || []).length" class="muted">无</span>
+            </div>
+          </el-descriptions-item>
+          <el-descriptions-item label="信号" :span="2">
+            <div class="tag-list">
+              <el-tag v-for="signal in decision.signals || []" :key="signal" type="info" size="small">{{ signal }}</el-tag>
+              <span v-if="!(decision.signals || []).length" class="muted">无</span>
+            </div>
+          </el-descriptions-item>
+        </el-descriptions>
+      </el-card>
+
+      <el-card v-if="attachments.length" class="attachments-card">
+        <template #header>
+          <div class="card-header">
+            <span class="section-index">04</span>
+            <h3>普通附件</h3>
+            <small>{{ attachments.length }} 个文件</small>
+          </div>
+        </template>
+        <div class="attachment-list">
+          <div v-for="item in attachments" :key="item.attachment_id" class="attachment-item">
+            <div class="attachment-main">
+              <strong>{{ item.filename }}</strong>
+              <small>{{ item.content_type || '未知类型' }} · {{ formatSize(item.size_bytes) }}</small>
+            </div>
+            <el-tag size="small" :type="attachmentStatusType(item.extraction_status)">
+              {{ attachmentStatusLabel(item.extraction_status) }}
+            </el-tag>
+            <el-link :href="attachmentDownloadUrl(item)" target="_blank" type="primary">下载</el-link>
+            <p class="attachment-preview">{{ item.extracted_text || '未提取文本内容' }}</p>
+          </div>
+        </div>
+      </el-card>
+
       <!-- 知识依据和操作 -->
       <el-card v-if="hasMultimodalData" class="multimodal-card">
         <template #header>
@@ -268,6 +329,8 @@ const rejectReason = ref('')
 const retrieval = ref({})
 const media = ref([])
 const multimodal = ref({})
+const decision = ref({})
+const attachments = ref([])
 
 const replySubject = computed(() => {
   if (!mail.value) return ''
@@ -362,6 +425,8 @@ const loadDetail = async () => {
     retrieval.value = data.retrieval || {}
     media.value = data.media || []
     multimodal.value = data.multimodal || {}
+    decision.value = data.decision || {}
+    attachments.value = data.attachments || []
   } catch (error) {
     console.error('加载邮件详情失败:', error)
     if (error?.response?.status === 404) router.replace('/mails')
@@ -447,6 +512,10 @@ const mediaPreviewUrl = (item) => {
   return mailApi.mediaUrl(mail.value?.message_id, item.media_id)
 }
 
+const attachmentDownloadUrl = (item) => {
+  return mailApi.attachmentUrl(mail.value?.message_id, item.attachment_id)
+}
+
 const mediaLabel = (item) => {
   if (item.source === 'video_frame') return '视频关键帧'
   if (item.source === 'inline_cid') return '正文内嵌图片'
@@ -461,6 +530,26 @@ const formatSize = (size) => {
   if (value >= 1024) return `${(value / 1024).toFixed(1)} KB`
   return `${value} B`
 }
+
+const decisionActionLabel = (action) => ({
+  auto_sent: '已自动发送',
+  draft_ready: '待审核',
+  escalated: '转人工',
+  skipped_self: '已跳过'
+}[action] || getStatusLabel(action))
+
+const attachmentStatusLabel = (status) => ({
+  extracted: '已提取',
+  metadata_only: '仅元数据',
+  extraction_failed: '提取失败',
+  not_extracted: '未提取'
+}[status] || '未提取')
+
+const attachmentStatusType = (status) => ({
+  extracted: 'success',
+  extraction_failed: 'danger',
+  metadata_only: 'info'
+}[status] || 'warning')
 
 onMounted(() => {
   loadDetail()
@@ -501,6 +590,66 @@ onMounted(() => {
 
 .comparison-row {
   margin-bottom: 20px;
+}
+
+.decision-card,
+.attachments-card {
+  margin-bottom: 20px;
+}
+
+.tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.muted {
+  color: #98a2b3;
+}
+
+.attachment-list {
+  display: grid;
+  gap: 10px;
+}
+
+.attachment-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 8px 12px;
+  align-items: center;
+  padding: 10px 12px;
+  border: 1px solid #edf0f4;
+  border-radius: 8px;
+  background: #fafbfd;
+}
+
+.attachment-main {
+  min-width: 0;
+}
+
+.attachment-main strong,
+.attachment-main small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.attachment-main small {
+  margin-top: 3px;
+  color: #65758b;
+}
+
+.attachment-preview {
+  grid-column: 1 / -1;
+  max-height: 4.8em;
+  margin: 0;
+  overflow: auto;
+  color: #65758b;
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .multimodal-card {
@@ -699,6 +848,9 @@ onMounted(() => {
   .card-header { flex-wrap: wrap; }
   .card-header small { width: 100%; margin-left: 40px; overflow-wrap: anywhere; }
   .multimodal-grid { grid-template-columns: 1fr; }
+  .decision-details :deep(.el-descriptions__cell) { display: block; }
+  .attachment-item { grid-template-columns: minmax(0, 1fr) auto; }
+  .attachment-item .el-link { justify-self: end; }
   .signal-group { grid-template-columns: 1fr; gap: 6px; }
   .action-card { position: static; }
 }

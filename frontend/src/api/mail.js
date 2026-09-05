@@ -17,6 +17,11 @@ export const mailApi = {
     const token = encodeURIComponent(localStorage.getItem('auth_token') || '')
     return `/api/mails/${messagePath(messageId)}/media/${encodeURIComponent(String(mediaId || ''))}?token=${token}`
   },
+
+  attachmentUrl(messageId, attachmentId) {
+    const token = encodeURIComponent(localStorage.getItem('auth_token') || '')
+    return `/api/mails/${messagePath(messageId)}/attachments/${encodeURIComponent(String(attachmentId || ''))}?token=${token}`
+  },
   
   // 保存草稿
   saveDraft(messageId, body) {

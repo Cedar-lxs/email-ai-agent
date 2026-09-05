@@ -107,6 +107,8 @@ def get_mail_detail(message_id):
     retrieval = agent.db.parse_retrieval_trace(mail)
     media = agent.db.parse_media_manifest(mail)
     multimodal = agent.db.parse_multimodal_trace(mail)
+    decision = agent.db.parse_decision_trace(mail)
+    attachments = agent.db.parse_attachment_manifest(mail)
     reply_subject = agent.sender.build_reply_subject(mail["subject"])
 
     return jsonify({
@@ -115,6 +117,8 @@ def get_mail_detail(message_id):
         "retrieval": retrieval,
         "media": media,
         "multimodal": multimodal,
+        "decision": decision,
+        "attachments": attachments,
         "reply_subject": reply_subject
     })
 
@@ -141,6 +145,36 @@ def get_mail_media(message_id, media_id):
     media_root = Path(getattr(agent, "media_root", Path("data") / "media")).resolve()
     if media_root not in path.parents or not path.is_file():
         return jsonify({"error": "媒体文件不可访问"}), 404
+    return send_file(path, mimetype=record.get("content_type") or None)
+
+
+@bp.get("/mails/<path:message_id>/attachments/<attachment_id>")
+def get_mail_attachment(message_id, attachment_id):
+    """Serve a manifest-listed attachment from the configured storage root."""
+    token = ""
+    auth_header = request.headers.get("Authorization")
+    if auth_header and auth_header.startswith("Bearer "):
+        token = auth_header[7:]
+    token = token or request.args.get("token", "")
+    if not AuthManager.verify_token(token):
+        return jsonify({"error": "认证令牌无效或已过期"}), 401
+
+    agent = current_app.extensions["services"].agent
+    mail = agent.db.get_email(message_id)
+    if not mail:
+        return jsonify({"error": "邮件不存在"}), 404
+
+    manifest = agent.db.parse_attachment_manifest(mail)
+    record = next(
+        (item for item in manifest if item.get("attachment_id") == attachment_id), None
+    )
+    if not record:
+        return jsonify({"error": "附件不存在"}), 404
+
+    path = Path(record.get("path", "")).resolve()
+    attachment_root = Path(agent.attachment_storage.root).resolve()
+    if attachment_root not in path.parents or not path.is_file():
+        return jsonify({"error": "附件不可访问"}), 404
     return send_file(path, mimetype=record.get("content_type") or None)
 
 
