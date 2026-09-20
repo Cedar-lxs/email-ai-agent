@@ -14,6 +14,14 @@ from email_agent.web.auth import (
 bp = Blueprint("api", __name__, url_prefix="/api")
 
 
+def _string_fields(*names):
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return None
+    values = tuple(data.get(name, "") for name in names)
+    return values if all(isinstance(value, str) for value in values) else None
+
+
 # ============================================================
 # 认证相关 API
 # ============================================================
@@ -41,10 +49,12 @@ def setup_admin():
     manager = get_auth_manager()
     if not manager.setup_required():
         return jsonify({"error": "管理员已经初始化", "setup_required": False}), 409
-    data = request.get_json(silent=True) or {}
-    username = data.get("username", "").strip()
-    password = data.get("password", "")
-    if password != data.get("confirm_password", ""):
+    fields = _string_fields("username", "password", "confirm_password")
+    if fields is None:
+        return jsonify({"error": "用户名和密码格式无效"}), 400
+    username, password, confirm_password = fields
+    username = username.strip()
+    if password != confirm_password:
         return jsonify({"error": "两次输入的密码不一致"}), 400
     created, error = manager.setup_admin(username, password)
     if not created:
@@ -62,12 +72,16 @@ def setup_admin():
 @bp.post("/auth/login")
 def login():
     """用户登录"""
-    data = request.get_json(silent=True) or {}
-    username = data.get("username", "").strip()
-    password = data.get("password", "")
+    fields = _string_fields("username", "password")
+    if fields is None:
+        return jsonify({"error": "用户名和密码格式无效"}), 400
+    username, password = fields
+    username = username.strip()
 
     if not username or not password:
         return jsonify({"error": "用户名和密码不能为空"}), 400
+    if len(username) > 64 or len(password) > 256:
+        return jsonify({"error": "用户名或密码长度无效"}), 400
 
     manager = get_auth_manager()
     if manager.setup_required():
@@ -124,10 +138,13 @@ def change_password():
     identity = request.current_auth
     if identity.source == "api_token":
         return jsonify({"error": "API 令牌不能修改管理员密码"}), 403
-    data = request.get_json(silent=True) or {}
-    current_password = data.get("current_password", "")
-    new_password = data.get("new_password", "")
-    if new_password != data.get("confirm_password", ""):
+    fields = _string_fields("current_password", "new_password", "confirm_password")
+    if fields is None:
+        return jsonify({"error": "密码格式无效"}), 400
+    current_password, new_password, confirm_password = fields
+    if any(len(value) > 256 for value in fields):
+        return jsonify({"error": "密码长度不能超过 256 位"}), 400
+    if new_password != confirm_password:
         return jsonify({"error": "两次输入的新密码不一致"}), 400
     changed, error = get_auth_manager().change_password(
         identity.username, current_password, new_password

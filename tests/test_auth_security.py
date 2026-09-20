@@ -1,4 +1,5 @@
 import hashlib
+import sqlite3
 import sys
 import tempfile
 import unittest
@@ -96,6 +97,17 @@ class AuthSecurityTests(unittest.TestCase):
             other_db.conn.close()
             other_temp.cleanup()
 
+    def test_database_enforces_exactly_one_local_administrator(self):
+        self.assertEqual(self.setup_admin().status_code, 201)
+        now = datetime.now(timezone.utc).isoformat()
+
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.conn.execute(
+                "INSERT INTO auth_users(username, password_hash, created_at, updated_at) "
+                "VALUES (?, ?, ?, ?)",
+                ("second-admin", "scrypt$invalid", now, now),
+            )
+
     def test_five_failed_logins_lock_username_and_client(self):
         created = self.setup_admin()
         self.assertEqual(created.status_code, 201)
@@ -117,6 +129,44 @@ class AuthSecurityTests(unittest.TestCase):
             "/api/auth/login", json={"username": "admin", "password": STRONG_PASSWORD}
         )
         self.assertEqual(correct_while_locked.status_code, 429)
+
+    def test_login_rejects_oversized_credentials_without_recording_attempt(self):
+        created = self.setup_admin()
+        self.assertEqual(created.status_code, 201)
+        self.client.post("/api/auth/logout", headers=self.csrf_headers(created))
+
+        oversized_username = self.client.post(
+            "/api/auth/login", json={"username": "u" * 65, "password": "WrongPassword!9"}
+        )
+        oversized_password = self.client.post(
+            "/api/auth/login", json={"username": "admin", "password": "P" * 257}
+        )
+
+        self.assertEqual(oversized_username.status_code, 400)
+        self.assertEqual(oversized_password.status_code, 400)
+        count = self.db.conn.execute("SELECT COUNT(*) FROM auth_login_attempts").fetchone()[0]
+        self.assertEqual(count, 0)
+
+    def test_auth_endpoints_reject_non_string_credentials(self):
+        try:
+            bad_setup = self.client.post(
+                "/api/auth/setup",
+                json={"username": 123, "password": STRONG_PASSWORD,
+                      "confirm_password": STRONG_PASSWORD},
+            )
+        except Exception as exc:
+            self.fail(f"setup raised instead of returning 400: {exc}")
+        self.assertEqual(bad_setup.status_code, 400)
+
+        created = self.setup_admin()
+        self.assertEqual(created.status_code, 201)
+        try:
+            bad_login = self.client.post(
+                "/api/auth/login", json={"username": "admin", "password": ["not", "text"]}
+            )
+        except Exception as exc:
+            self.fail(f"login raised instead of returning 400: {exc}")
+        self.assertEqual(bad_login.status_code, 400)
 
     def test_session_survives_new_app_instance_and_database_stores_only_token_hash(self):
         created = self.setup_admin()
