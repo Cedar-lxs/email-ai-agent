@@ -105,7 +105,7 @@ const handleLogout = async () => {
       type: 'warning'
     })
     
-    authStore.logout()
+    await authStore.logout()
     router.push('/login')
   } catch (error) {
     // 用户取消

@@ -46,8 +46,13 @@ class WebTests(unittest.TestCase):
         )
         self.app = create_app(agent, review, knowledge, True)
         self.client = self.app.test_client()
-        login = self.client.post("/api/auth/login", json={"username": "admin", "password": "admin123"})
-        self.auth_headers = {"Authorization": f"Bearer {login.get_json()['token']}"}
+        setup = self.client.post("/api/auth/setup", json={
+            "username": "admin",
+            "password": "SecureAdmin!2026",
+            "confirm_password": "SecureAdmin!2026",
+        })
+        self.assertEqual(setup.status_code, 201)
+        self.auth_headers = {"X-CSRF-Token": setup.get_json()["csrf_token"]}
 
     def tearDown(self):
         self.db.conn.close()

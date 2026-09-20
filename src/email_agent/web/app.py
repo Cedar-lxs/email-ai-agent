@@ -3,9 +3,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from flask import Flask, jsonify, redirect, send_from_directory
-from flask_cors import CORS
-
 from email_agent.bootstrap import create_services
+from email_agent.web.auth import AuthManager
 from email_agent.web.routes import api
 
 
@@ -19,11 +18,11 @@ class WebServices:
 def create_app(agent=None, review=None, knowledge_service=None, testing=False):
     app = Flask(__name__)
     app.config.update(TESTING=testing, MAX_CONTENT_LENGTH=100 * 1024 * 1024)
-    CORS(app, resources={r"/api/*": {"origins": "*"}})
 
     if agent is None:
         agent, review, knowledge_service = create_services()
     app.extensions["services"] = WebServices(agent, review, knowledge_service)
+    app.extensions["auth"] = AuthManager(agent.db)
     app.register_blueprint(api.bp)
 
     dist_dir = Path(__file__).parent / "dist"

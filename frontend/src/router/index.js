@@ -55,12 +55,10 @@ const router = createRouter({
 
 // 路由守卫
 router.beforeEach((to, from, next) => {
-  const hasToken = Boolean(localStorage.getItem('auth_token'))
-  
-  if (to.meta.requiresAuth && !hasToken) {
+  const hasSessionMarker = Boolean(localStorage.getItem('username'))
+
+  if (to.meta.requiresAuth && !hasSessionMarker) {
     next('/login')
-  } else if (to.path === '/login' && hasToken) {
-    next('/')
   } else {
     next()
   }

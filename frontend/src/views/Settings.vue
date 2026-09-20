@@ -24,6 +24,22 @@
       </el-card>
 
       <el-card shadow="never">
+        <template #header><div class="section-title"><el-icon><Lock /></el-icon><div><h2>登录安全</h2><p>修改后，所有设备都需要使用新密码重新登录。</p></div></div></template>
+        <el-form ref="passwordFormRef" :model="passwordForm" :rules="passwordRules" label-position="top" @keyup.enter="changePassword">
+          <el-form-item label="当前密码" prop="currentPassword">
+            <el-input v-model="passwordForm.currentPassword" type="password" autocomplete="current-password" show-password />
+          </el-form-item>
+          <el-form-item label="新密码" prop="newPassword">
+            <el-input v-model="passwordForm.newPassword" type="password" autocomplete="new-password" show-password />
+          </el-form-item>
+          <el-form-item label="确认新密码" prop="confirmPassword">
+            <el-input v-model="passwordForm.confirmPassword" type="password" autocomplete="new-password" show-password />
+          </el-form-item>
+          <el-button type="primary" :loading="changingPassword" @click="changePassword">修改密码</el-button>
+        </el-form>
+      </el-card>
+
+      <el-card shadow="never">
         <template #header><div class="section-title"><el-icon><Message /></el-icon><div><h2>邮箱配置</h2><p>仅显示非敏感连接信息。</p></div></div></template>
         <el-descriptions :column="1" border>
           <el-descriptions-item label="邮箱账号">{{ settings.mail?.account || '—' }}</el-descriptions-item>
@@ -57,16 +73,44 @@
 </template>
 
 <script setup>
-import { onMounted, ref } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
-import { CircleCheck, Connection, Cpu, Message, Switch } from '@element-plus/icons-vue'
-import { settingsApi } from '@/api/settings'
+import { onMounted, reactive, ref } from 'vue'
+import { useRouter } from 'vue-router'
+  import { ElMessage, ElMessageBox } from 'element-plus'
+import { CircleCheck, Connection, Cpu, Lock, Message, Switch } from '@element-plus/icons-vue'
+import { authApi } from '@/api/auth'
+  import { settingsApi } from '@/api/settings'
+import { useAuthStore } from '@/store/auth'
+
+const router = useRouter()
+const authStore = useAuthStore()
 
 const settings = ref({ mode: 'semi_auto', mail: {}, ai: {}, rag: {}, web_search: {}, auto_reply_types: [] })
 const loading = ref(false)
 const savingMode = ref(false)
 const testingMail = ref(false)
 const testingAi = ref(false)
+const passwordFormRef = ref(null)
+const changingPassword = ref(false)
+const passwordForm = reactive({ currentPassword: '', newPassword: '', confirmPassword: '' })
+
+const validateNewPassword = (_, value, callback) => {
+  if (!value) return callback(new Error('请输入新密码'))
+  if (value.length < 12) return callback(new Error('密码长度不能少于 12 位'))
+  const categories = [/[a-z]/, /[A-Z]/, /\d/, /[^A-Za-z0-9]/]
+    .filter(pattern => pattern.test(value)).length
+  if (categories < 3) return callback(new Error('密码需包含至少三类字符'))
+  callback()
+}
+const validatePasswordConfirmation = (_, value, callback) => {
+  if (!value) return callback(new Error('请再次输入新密码'))
+  if (value !== passwordForm.newPassword) return callback(new Error('两次输入的新密码不一致'))
+  callback()
+}
+const passwordRules = {
+  currentPassword: [{ required: true, message: '请输入当前密码', trigger: 'blur' }],
+  newPassword: [{ validator: validateNewPassword, trigger: ['blur', 'change'] }],
+  confirmPassword: [{ validator: validatePasswordConfirmation, trigger: ['blur', 'change'] }]
+}
 
 const loadSettings = async () => {
   loading.value = true
@@ -103,6 +147,24 @@ const testMail = async () => {
 const testAi = async () => {
   testingAi.value = true
   try { ElMessage.success((await settingsApi.testAi()).message) } finally { testingAi.value = false }
+}
+const changePassword = async () => {
+  if (!passwordFormRef.value) return
+  const valid = await passwordFormRef.value.validate().catch(() => false)
+  if (!valid) return
+  changingPassword.value = true
+  try {
+    const data = await authApi.changePassword(
+      passwordForm.currentPassword,
+      passwordForm.newPassword,
+      passwordForm.confirmPassword
+    )
+    ElMessage.success(data.message)
+    authStore.clearSession()
+    await router.replace('/login')
+  } finally {
+    changingPassword.value = false
+  }
 }
 const endpoint = (host, port) => host ? `${host}${port ? `:${port}` : ''}` : '—'
 

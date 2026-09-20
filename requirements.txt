@@ -7,7 +7,6 @@ python-docx>=1.1.0
 openpyxl>=3.1.0
 pypdf>=4.0.0
 flask>=3.0.0
-flask-cors>=4.0.0
 
 # 异步支持已集成在 Python 3.7+ 标准库中 (asyncio)
 # httpx 已支持异步客户端

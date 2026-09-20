@@ -8,10 +8,10 @@
 - ✅ 流畅的动画和交互体验
 
 ### 2. 用户认证
-- ✅ JWT Token 认证
+- ✅ HttpOnly Cookie 会话认证
 - ✅ 自动登录状态管理
-- ✅ Token 自动续期
-- ✅ 默认账号：admin / admin123
+- ✅ CSRF 请求保护
+- ✅ 首次创建管理员、登录锁定和修改密码
 
 ### 3. 邮件管理
 - ✅ 邮件列表（搜索、筛选、分页）
@@ -109,6 +109,18 @@ frontend/
 
 ### 认证接口
 
+#### 首次创建管理员
+```
+POST /api/auth/setup
+Content-Type: application/json
+
+{
+  "username": "admin",
+  "password": "至少 12 位强密码",
+  "confirm_password": "至少 12 位强密码"
+}
+```
+
 #### 登录
 ```
 POST /api/auth/login
@@ -116,21 +128,21 @@ Content-Type: application/json
 
 {
   "username": "admin",
-  "password": "admin123"
+  "password": "管理员密码"
 }
 
 响应：
 {
-  "token": "xxx",
   "username": "admin",
   "message": "登录成功"
 }
 ```
 
-#### 验证 Token
+登录成功后，浏览器自动保存 HttpOnly 会话 Cookie；前端脚本无法读取登录凭证。
+
+#### 验证会话
 ```
 GET /api/auth/verify
-Authorization: Bearer {token}
 
 响应：
 {
@@ -142,7 +154,6 @@ Authorization: Bearer {token}
 #### 登出
 ```
 POST /api/auth/logout
-Authorization: Bearer {token}
 
 响应：
 {
@@ -283,16 +294,16 @@ print(hash_value)
 
 ### 后端
 - Flask 3.0
-- Flask-CORS 4.0
-- 内存 Token 存储（可扩展为 Redis）
+- SQLite 持久会话
+- scrypt 密码哈希
 
 ## 常见问题
 
 ### Q: 前端访问后端 API 跨域问题？
 A: 开发模式下 Vite 已配置代理，生产模式前后端同源无跨域问题。
 
-### Q: Token 存储在哪里？
-A: 目前使用内存存储，重启后端会失效。生产环境建议使用 Redis 或数据库。
+### Q: 登录会话存储在哪里？
+A: 浏览器使用 HttpOnly Cookie；数据库只保存令牌哈希，服务重启后会话仍然有效。
 
 ### Q: 如何自定义前端主题？
 A: 修改 Element Plus 主题变量，或在组件中使用 CSS 变量覆盖。

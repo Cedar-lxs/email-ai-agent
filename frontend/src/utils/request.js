@@ -5,15 +5,22 @@ import router from '@/router'
 
 const request = axios.create({
   baseURL: '/api',
-  timeout: 30000
+  timeout: 30000,
+  withCredentials: true
 })
 
-// 请求拦截器
+const readCookie = name => {
+  const prefix = `${name}=`
+  const item = document.cookie.split('; ').find(value => value.startsWith(prefix))
+  return item ? decodeURIComponent(item.slice(prefix.length)) : ''
+}
+
 request.interceptors.request.use(
   config => {
-    const token = localStorage.getItem('auth_token')
-    if (token) {
-      config.headers['Authorization'] = `Bearer ${token}`
+    const method = (config.method || 'get').toLowerCase()
+    if (!['get', 'head', 'options'].includes(method)) {
+      const csrfToken = readCookie('email_agent_csrf')
+      if (csrfToken) config.headers['X-CSRF-Token'] = csrfToken
     }
     return config
   },
@@ -22,7 +29,6 @@ request.interceptors.request.use(
   }
 )
 
-// 响应拦截器
 request.interceptors.response.use(
   response => {
     const contentType = response.headers?.['content-type'] || ''
@@ -36,8 +42,10 @@ request.interceptors.response.use(
     if (error.response) {
       const { status, data } = error.response
       
-      if (status === 401 && !error.config?.url?.includes('/auth/login')) {
-        localStorage.removeItem('auth_token')
+      const publicAuthRequest = ['/auth/login', '/auth/setup', '/auth/password'].some(path =>
+        error.config?.url?.includes(path)
+      )
+      if (status === 401 && !publicAuthRequest) {
         localStorage.removeItem('username')
 
         if (router.currentRoute.value.path !== '/login') {

@@ -1,8 +1,15 @@
 """API 路由：认证和邮件管理。"""
 from pathlib import Path
 
-from flask import Blueprint, current_app, request, jsonify, send_file
-from email_agent.web.auth import AuthManager, token_required, get_current_user
+from flask import Blueprint, current_app, make_response, request, jsonify, send_file
+from email_agent.web.auth import (
+    clear_auth_cookies,
+    current_identity,
+    get_auth_manager,
+    get_current_user,
+    set_auth_cookies,
+    token_required,
+)
 
 bp = Blueprint("api", __name__, url_prefix="/api")
 
@@ -10,6 +17,47 @@ bp = Blueprint("api", __name__, url_prefix="/api")
 # ============================================================
 # 认证相关 API
 # ============================================================
+
+@bp.get("/auth/status")
+def auth_status():
+    manager = get_auth_manager()
+    identity = current_identity()
+    if identity and identity.source == "cookie":
+        csrf_token = request.cookies.get(manager.CSRF_COOKIE_NAME, "")
+        if not manager.verify_csrf(identity, csrf_token):
+            manager.revoke_session(identity.token)
+            identity = None
+    payload = {
+        "setup_required": manager.setup_required(),
+        "authenticated": bool(identity),
+    }
+    if identity:
+        payload["username"] = identity.username
+    return jsonify(payload)
+
+
+@bp.post("/auth/setup")
+def setup_admin():
+    manager = get_auth_manager()
+    if not manager.setup_required():
+        return jsonify({"error": "管理员已经初始化", "setup_required": False}), 409
+    data = request.get_json(silent=True) or {}
+    username = data.get("username", "").strip()
+    password = data.get("password", "")
+    if password != data.get("confirm_password", ""):
+        return jsonify({"error": "两次输入的密码不一致"}), 400
+    created, error = manager.setup_admin(username, password)
+    if not created:
+        status = 409 if not manager.setup_required() else 400
+        return jsonify({"error": error, "setup_required": manager.setup_required()}), status
+    token, csrf_token = manager.create_session(username)
+    response = make_response(jsonify({
+        "username": username,
+        "csrf_token": csrf_token,
+        "message": "管理员创建成功",
+    }), 201)
+    return set_auth_cookies(response, token, csrf_token)
+
 
 @bp.post("/auth/login")
 def login():
@@ -21,15 +69,33 @@ def login():
     if not username or not password:
         return jsonify({"error": "用户名和密码不能为空"}), 400
 
-    if not AuthManager.verify_password(username, password):
+    manager = get_auth_manager()
+    if manager.setup_required():
+        return jsonify({"error": "请先创建管理员", "setup_required": True}), 409
+    client_key = request.remote_addr or "unknown"
+    retry_after = manager.lock_seconds(username, client_key)
+    if retry_after:
+        response = jsonify({"error": "登录尝试过多，请稍后再试"})
+        response.status_code = 429
+        response.headers["Retry-After"] = str(retry_after)
+        return response
+    if not manager.verify_password(username, password):
+        retry_after = manager.record_login_failure(username, client_key)
+        if retry_after:
+            response = jsonify({"error": "登录尝试过多，请稍后再试"})
+            response.status_code = 429
+            response.headers["Retry-After"] = str(retry_after)
+            return response
         return jsonify({"error": "用户名或密码错误"}), 401
 
-    token = AuthManager.generate_token(username)
-    return jsonify({
-        "token": token,
+    manager.clear_login_failures(username, client_key)
+    token, csrf_token = manager.create_session(username)
+    response = make_response(jsonify({
         "username": username,
+        "csrf_token": csrf_token,
         "message": "登录成功"
-    })
+    }))
+    return set_auth_cookies(response, token, csrf_token)
 
 
 @bp.get("/auth/verify")
@@ -46,11 +112,30 @@ def verify_token():
 @token_required
 def logout():
     """登出"""
-    auth_header = request.headers.get('Authorization', '')
-    if auth_header.startswith('Bearer '):
-        token = auth_header[7:]
-        AuthManager.revoke_token(token)
-    return jsonify({"message": "已登出"})
+    identity = request.current_auth
+    if identity.token:
+        get_auth_manager().revoke_session(identity.token)
+    return clear_auth_cookies(jsonify({"message": "已登出"}))
+
+
+@bp.post("/auth/password")
+@token_required
+def change_password():
+    identity = request.current_auth
+    if identity.source == "api_token":
+        return jsonify({"error": "API 令牌不能修改管理员密码"}), 403
+    data = request.get_json(silent=True) or {}
+    current_password = data.get("current_password", "")
+    new_password = data.get("new_password", "")
+    if new_password != data.get("confirm_password", ""):
+        return jsonify({"error": "两次输入的新密码不一致"}), 400
+    changed, error = get_auth_manager().change_password(
+        identity.username, current_password, new_password
+    )
+    if not changed:
+        status = 401 if error == "当前密码错误" else 400
+        return jsonify({"error": error}), status
+    return clear_auth_cookies(jsonify({"message": "密码已修改，请重新登录"}))
 
 
 # ============================================================
@@ -124,15 +209,9 @@ def get_mail_detail(message_id):
 
 
 @bp.get("/mails/<path:message_id>/media/<media_id>")
+@token_required
 def get_mail_media(message_id, media_id):
     """Serve stored mail media listed in the DB manifest."""
-    token = ""
-    auth_header = request.headers.get("Authorization")
-    if auth_header and auth_header.startswith("Bearer "):
-        token = auth_header[7:]
-    token = token or request.args.get("token", "")
-    if not AuthManager.verify_token(token):
-        return jsonify({"error": "认证令牌无效或已过期"}), 401
     agent = current_app.extensions["services"].agent
     mail = agent.db.get_email(message_id)
     if not mail:
@@ -149,16 +228,9 @@ def get_mail_media(message_id, media_id):
 
 
 @bp.get("/mails/<path:message_id>/attachments/<attachment_id>")
+@token_required
 def get_mail_attachment(message_id, attachment_id):
     """Serve a manifest-listed attachment from the configured storage root."""
-    token = ""
-    auth_header = request.headers.get("Authorization")
-    if auth_header and auth_header.startswith("Bearer "):
-        token = auth_header[7:]
-    token = token or request.args.get("token", "")
-    if not AuthManager.verify_token(token):
-        return jsonify({"error": "认证令牌无效或已过期"}), 401
-
     agent = current_app.extensions["services"].agent
     mail = agent.db.get_email(message_id)
     if not mail:

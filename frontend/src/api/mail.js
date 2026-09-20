@@ -14,13 +14,11 @@ export const mailApi = {
   },
 
   mediaUrl(messageId, mediaId) {
-    const token = encodeURIComponent(localStorage.getItem('auth_token') || '')
-    return `/api/mails/${messagePath(messageId)}/media/${encodeURIComponent(String(mediaId || ''))}?token=${token}`
+    return `/api/mails/${messagePath(messageId)}/media/${encodeURIComponent(String(mediaId || ''))}`
   },
 
   attachmentUrl(messageId, attachmentId) {
-    const token = encodeURIComponent(localStorage.getItem('auth_token') || '')
-    return `/api/mails/${messagePath(messageId)}/attachments/${encodeURIComponent(String(attachmentId || ''))}?token=${token}`
+    return `/api/mails/${messagePath(messageId)}/attachments/${encodeURIComponent(String(attachmentId || ''))}`
   },
   
   // 保存草稿
