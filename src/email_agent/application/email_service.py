@@ -42,15 +42,21 @@ class EmailAgent:
         paths = get_project_paths()
 
         # 设置日志
-        log_dir = self.config.get("logging", {}).get("dir", str(paths.root / "logs"))
+        log_dir = resolve_from_root(
+            self.config.get("logging", {}).get("dir", "./logs"), paths.runtime_root
+        )
         log_level = self.config.get("logging", {}).get("level", "INFO")
         setup_logger("email_agent", log_dir, log_level)
         self.logger = get_logger("email_agent")
         self.logger.info("=" * 60)
         self.logger.info("EmailAgent 初始化开始")
 
-        db_path = resolve_from_root(self.config["database"]["path"], paths.root)
-        draft_path = resolve_from_root(self.config["workflow"]["draft_dir"], paths.root)
+        db_path = resolve_from_root(
+            self.config["database"]["path"], paths.runtime_root
+        )
+        draft_path = resolve_from_root(
+            self.config["workflow"]["draft_dir"], paths.runtime_root
+        )
         self.db = EmailDB(str(db_path))
         mail = self.config["mail"]
         self.sender = MailSender(

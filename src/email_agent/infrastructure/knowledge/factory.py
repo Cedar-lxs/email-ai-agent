@@ -5,7 +5,7 @@ from email_agent.infrastructure.knowledge.embeddings import OpenAICompatibleEmbe
 from email_agent.infrastructure.knowledge.hybrid import HybridKnowledgeRetriever
 from email_agent.infrastructure.knowledge.lexical import LexicalKnowledgeRetriever
 from email_agent.infrastructure.knowledge.vector_index import SQLiteVectorIndex
-from email_agent.paths import resolve_from_root
+from email_agent.paths import get_project_paths, resolve_from_root
 
 
 def create_retriever(config: dict, knowledge_dir):
@@ -28,5 +28,12 @@ def create_retriever(config: dict, knowledge_dir):
         timeout=float(embedding.get("timeout", 60)),
         retries=int(embedding.get("retries", 3)),
     )
-    index = SQLiteVectorIndex(resolve_from_root(rag.get("index_path", "./data/vector_store/index.sqlite")), client)
+    paths = get_project_paths()
+    index = SQLiteVectorIndex(
+        resolve_from_root(
+            rag.get("index_path", "./data/vector_store/index.sqlite"),
+            paths.runtime_root,
+        ),
+        client,
+    )
     return HybridKnowledgeRetriever(knowledge_dir, rag, client, index)
