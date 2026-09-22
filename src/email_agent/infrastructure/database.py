@@ -9,7 +9,8 @@ from pathlib import Path
 class EmailDB:
     def __init__(self, db_path: str = "./data/emails.db"):
         Path(db_path).parent.mkdir(parents=True, exist_ok=True)
-        self.conn = sqlite3.connect(db_path, timeout=15, check_same_thread=False)
+        self.db_path = str(Path(db_path))
+        self.conn = sqlite3.connect(self.db_path, timeout=15, check_same_thread=False)
         self.conn.execute("PRAGMA journal_mode=WAL")
         self.conn.execute("PRAGMA busy_timeout=15000")
         self.conn.row_factory = sqlite3.Row
