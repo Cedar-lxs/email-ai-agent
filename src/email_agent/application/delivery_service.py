@@ -67,7 +67,9 @@ class DeliveryService:
         if not str(actor).strip() or not str(reason).strip():
             raise ValueError("确认发送必须填写操作者和原因")
         self.store.require_delivery(delivery_id, DeliveryStatus.UNCERTAIN)
-        self.store.accept_delivery(delivery_id, f"人工确认: {reason}")
+        self.store.accept_delivery(
+            delivery_id, f"人工确认: {reason}", actor=actor, reason=reason
+        )
         return self.store.get_delivery(delivery_id)
 
     def authorize_resend(self, delivery_id: str, actor: str, reason: str):

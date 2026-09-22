@@ -42,7 +42,7 @@ TERMINAL_JOB_STATUSES = {
 
 JOB_TRANSITIONS = {
     JobStatus.PENDING: {JobStatus.PROCESSING},
-    JobStatus.RETRY_WAIT: {JobStatus.PROCESSING},
+    JobStatus.RETRY_WAIT: {JobStatus.PROCESSING, JobStatus.ESCALATED},
     JobStatus.PROCESSING: {
         JobStatus.RETRY_WAIT,
         JobStatus.SEND_PREPARED,

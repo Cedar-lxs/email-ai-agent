@@ -2,6 +2,7 @@
 from pathlib import Path
 
 from flask import Blueprint, current_app, make_response, request, jsonify, send_file
+from email_agent.infrastructure.mail_sender import SmtpOutcome
 from email_agent.web.auth import (
     clear_auth_cookies,
     current_identity,
@@ -295,7 +296,7 @@ def approve_mail(message_id):
     review = current_app.extensions["services"].review
 
     try:
-        review.approve(message_id)
+        review.approve(message_id, actor=request.current_auth.username)
         return jsonify({"message": "邮件已发送"})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -542,6 +543,112 @@ def test_ai_connection():
         return jsonify({"error": f"AI 服务连接失败：{exc}"}), 502
 
 
+def _operation_reason():
+    reason = str((request.get_json(silent=True) or {}).get("reason", "")).strip()
+    if not 3 <= len(reason) <= 500:
+        raise ValueError("操作原因长度必须为 3-500 个字符")
+    return reason
+
+
+@bp.get("/operations/mail-jobs")
+@token_required
+def get_mail_jobs():
+    raw_statuses = request.args.get(
+        "status", "retry_wait,dead_letter,awaiting_confirmation"
+    )
+    statuses = tuple(
+        value.strip() for value in raw_statuses.split(",") if value.strip()
+    )
+    allowed = {"retry_wait", "dead_letter", "awaiting_confirmation"}
+    if not statuses or not set(statuses) <= allowed:
+        return jsonify({"error": "无效的任务状态"}), 400
+    try:
+        page = max(1, int(request.args.get("page", 1)))
+        page_size = min(100, max(1, int(request.args.get("page_size", 20))))
+    except (TypeError, ValueError):
+        return jsonify({"error": "分页参数必须是整数"}), 400
+    payload = current_app.extensions["services"].agent.mail_jobs.list_jobs(
+        statuses, page, page_size
+    )
+    return jsonify(payload)
+
+
+@bp.get("/operations/mail-jobs/<job_id>")
+@token_required
+def get_mail_job(job_id):
+    detail = current_app.extensions["services"].agent.mail_jobs.get_job_detail(job_id)
+    if not detail:
+        return jsonify({"error": "任务不存在"}), 404
+    return jsonify(detail)
+
+
+@bp.post("/operations/mail-jobs/<job_id>/retry")
+@token_required
+def retry_mail_job(job_id):
+    try:
+        row = current_app.extensions["services"].agent.mail_jobs.requeue_dead_letter(
+            job_id, request.current_auth.username, _operation_reason()
+        )
+        return jsonify({"message": "任务已重新进入待处理队列", "job": dict(row)})
+    except KeyError:
+        return jsonify({"error": "任务不存在"}), 404
+    except ValueError as exc:
+        status = 409 if "状态" in str(exc) else 400
+        return jsonify({"error": str(exc)}), status
+
+
+@bp.post("/operations/mail-jobs/<job_id>/escalate")
+@token_required
+def escalate_mail_job(job_id):
+    try:
+        row = current_app.extensions["services"].agent.mail_jobs.escalate_job(
+            job_id, request.current_auth.username, _operation_reason()
+        )
+        return jsonify({"message": "任务已转人工", "job": dict(row)})
+    except KeyError:
+        return jsonify({"error": "任务不存在"}), 404
+    except ValueError as exc:
+        status = 409 if "状态" in str(exc) else 400
+        return jsonify({"error": str(exc)}), status
+
+
+@bp.post("/operations/deliveries/<delivery_id>/confirm-sent")
+@token_required
+def confirm_delivery_sent(delivery_id):
+    try:
+        delivery = current_app.extensions["services"].agent.delivery.confirm_sent(
+            delivery_id, request.current_auth.username, _operation_reason()
+        )
+        return jsonify({"message": "已确认发送", "delivery": dict(delivery)})
+    except KeyError:
+        return jsonify({"error": "投递记录不存在"}), 404
+    except ValueError as exc:
+        status = 409 if "状态" in str(exc) else 400
+        return jsonify({"error": str(exc)}), status
+
+
+@bp.post("/operations/deliveries/<delivery_id>/authorize-resend")
+@token_required
+def authorize_delivery_resend(delivery_id):
+    try:
+        replacement_id, result = (
+            current_app.extensions["services"].agent.delivery.authorize_resend(
+                delivery_id, request.current_auth.username, _operation_reason()
+            )
+        )
+    except KeyError:
+        return jsonify({"error": "投递记录不存在"}), 404
+    except ValueError as exc:
+        status = 409 if "状态" in str(exc) else 400
+        return jsonify({"error": str(exc)}), status
+    payload = {"delivery_id": replacement_id, "outcome": result.outcome.value}
+    if result.outcome == SmtpOutcome.ACCEPTED:
+        return jsonify(payload)
+    if result.outcome == SmtpOutcome.UNCERTAIN:
+        return jsonify({**payload, "error": "重发结果未知，已再次进入待确认"}), 409
+    return jsonify({**payload, "error": "SMTP 尚未开始发送，可再次人工操作"}), 502
+
+
 @bp.get("/mails/stats")
 @token_required
 def get_stats():
@@ -554,7 +661,8 @@ def get_stats():
 
     return jsonify({
         "counts": counts,
-        "mode": mode
+        "mode": mode,
+        "operations": agent.mail_jobs.get_operation_counts(),
     })
 
 @bp.get("/customers/<path:sender_email>/history")

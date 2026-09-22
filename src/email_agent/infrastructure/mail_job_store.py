@@ -249,6 +249,139 @@ class MailJobStore:
         with self._connect() as conn:
             return conn.execute("SELECT COUNT(*) FROM mail_jobs").fetchone()[0]
 
+    def list_jobs(self, statuses, page: int = 1, page_size: int = 20):
+        values = tuple(
+            status.value if isinstance(status, JobStatus) else str(status)
+            for status in statuses
+        )
+        if not values:
+            raise ValueError("任务状态不能为空")
+        known = {status.value for status in JobStatus}
+        if not set(values) <= known:
+            raise ValueError("包含无效的任务状态")
+        page = max(1, int(page))
+        page_size = min(100, max(1, int(page_size)))
+        placeholders = ",".join("?" for _ in values)
+        offset = (page - 1) * page_size
+        with self._connect() as conn:
+            total = conn.execute(
+                f"SELECT COUNT(*) FROM mail_jobs WHERE status IN ({placeholders})",
+                values,
+            ).fetchone()[0]
+            rows = conn.execute(f"""
+                SELECT * FROM mail_jobs WHERE status IN ({placeholders})
+                ORDER BY updated_at, created_at, id LIMIT ? OFFSET ?
+            """, (*values, page_size, offset)).fetchall()
+        return {
+            "jobs": [dict(row) for row in rows],
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+        }
+
+    def get_job_detail(self, job_id: str):
+        with self._connect() as conn:
+            job = conn.execute(
+                "SELECT * FROM mail_jobs WHERE id=?", (job_id,)
+            ).fetchone()
+            if not job:
+                return None
+            deliveries = conn.execute("""
+                SELECT * FROM outbound_deliveries
+                WHERE job_id=? ORDER BY created_at, id
+            """, (job_id,)).fetchall()
+            events = conn.execute("""
+                SELECT * FROM mail_job_events
+                WHERE job_id=? ORDER BY id
+            """, (job_id,)).fetchall()
+        return {
+            "job": dict(job),
+            "deliveries": [dict(row) for row in deliveries],
+            "events": [dict(row) for row in events],
+        }
+
+    def get_operation_counts(self):
+        attention = (
+            JobStatus.RETRY_WAIT.value,
+            JobStatus.DEAD_LETTER.value,
+            JobStatus.AWAITING_CONFIRMATION.value,
+        )
+        with self._connect() as conn:
+            rows = conn.execute("""
+                SELECT status, COUNT(*) AS count FROM mail_jobs
+                WHERE status IN ('retry_wait','dead_letter','awaiting_confirmation')
+                GROUP BY status
+            """).fetchall()
+            oldest = conn.execute("""
+                SELECT MIN(updated_at) FROM mail_jobs
+                WHERE status IN ('retry_wait','dead_letter','awaiting_confirmation')
+            """).fetchone()[0]
+        result = {status: 0 for status in attention}
+        result.update({row["status"]: int(row["count"]) for row in rows})
+        result["total_attention"] = sum(result[status] for status in attention)
+        result["oldest_attention_at"] = oldest
+        return result
+
+    @staticmethod
+    def _require_operator(actor: str, reason: str):
+        if not str(actor).strip():
+            raise ValueError("操作人不能为空")
+        if not 3 <= len(str(reason).strip()) <= 500:
+            raise ValueError("操作原因长度必须为 3-500 个字符")
+
+    def requeue_dead_letter(self, job_id: str, actor: str, reason: str):
+        self._require_operator(actor, reason)
+        now = self._now()
+        with self._connect() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            row = conn.execute("SELECT * FROM mail_jobs WHERE id=?", (job_id,)).fetchone()
+            if not row:
+                raise KeyError(job_id)
+            if row["status"] != JobStatus.DEAD_LETTER.value:
+                raise ValueError("任务状态不是 dead_letter，不能重试")
+            require_transition(row["status"], JobStatus.PENDING.value, JOB_TRANSITIONS)
+            conn.execute("""
+                UPDATE mail_jobs SET status=?, attempt_count=0, next_attempt_at=NULL,
+                    lease_owner=NULL, lease_expires_at=NULL, last_error_code='',
+                    last_error='', finished_at=NULL, updated_at=? WHERE id=?
+            """, (JobStatus.PENDING.value, now, job_id))
+            self._append_event(
+                conn, job_id, "dead_letter_requeued", row["status"],
+                JobStatus.PENDING.value, actor, reason,
+            )
+            return conn.execute("SELECT * FROM mail_jobs WHERE id=?", (job_id,)).fetchone()
+
+    def escalate_job(self, job_id: str, actor: str, reason: str):
+        self._require_operator(actor, reason)
+        allowed = {
+            JobStatus.RETRY_WAIT.value,
+            JobStatus.DEAD_LETTER.value,
+            JobStatus.AWAITING_CONFIRMATION.value,
+        }
+        now = self._now()
+        with self._connect() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            row = conn.execute("SELECT * FROM mail_jobs WHERE id=?", (job_id,)).fetchone()
+            if not row:
+                raise KeyError(job_id)
+            if row["status"] not in allowed:
+                raise ValueError(f"任务状态 {row['status']} 不能转人工")
+            require_transition(row["status"], JobStatus.ESCALATED.value, JOB_TRANSITIONS)
+            conn.execute("""
+                UPDATE mail_jobs SET status=?, next_attempt_at=NULL,
+                    lease_owner=NULL, lease_expires_at=NULL, updated_at=?, finished_at=?
+                WHERE id=?
+            """, (JobStatus.ESCALATED.value, now, now, job_id))
+            conn.execute("""
+                UPDATE processed_emails SET status='escalated', notes=?
+                WHERE message_id=?
+            """, (f"人工转交: {reason}"[:1000], row["message_id"]))
+            self._append_event(
+                conn, job_id, "operator_escalated", row["status"],
+                JobStatus.ESCALATED.value, actor, reason,
+            )
+            return conn.execute("SELECT * FROM mail_jobs WHERE id=?", (job_id,)).fetchone()
+
     def find_jobs_by_message_id(self, message_id: str):
         with self._connect() as conn:
             return conn.execute("""
@@ -487,7 +620,8 @@ class MailJobStore:
                 delivery_id=delivery_id,
             )
 
-    def accept_delivery(self, delivery_id: str, smtp_response: str = ""):
+    def accept_delivery(self, delivery_id: str, smtp_response: str = "",
+                        actor: str = "", reason: str = ""):
         now = self._now()
         with self._connect() as conn:
             conn.execute("BEGIN IMMEDIATE")
@@ -538,6 +672,7 @@ class MailJobStore:
             self._append_event(
                 conn, delivery["job_id"], "delivery_accepted",
                 delivery["status"], DeliveryStatus.ACCEPTED.value,
+                actor=actor, reason=reason,
                 delivery_id=delivery_id,
             )
 
