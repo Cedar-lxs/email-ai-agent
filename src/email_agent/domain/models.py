@@ -42,6 +42,13 @@ class ParsedEmail:
 
 
 @dataclass(frozen=True)
+class IngestionResult:
+    discovered_job_ids: tuple[str, ...]
+    scanned_uids: tuple[int, ...]
+    uid_validity: str
+
+
+@dataclass(frozen=True)
 class StoredMedia:
     media_id: str
     filename: str

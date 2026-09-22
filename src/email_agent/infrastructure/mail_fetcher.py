@@ -59,6 +59,44 @@ class MailFetcher:
     async def disconnect_async(self):
         await asyncio.to_thread(self.disconnect)
 
+    def select_folder(self, folder: str = "INBOX") -> str:
+        """Select a folder and return its stable UIDVALIDITY value."""
+        status, _ = self._conn.select(folder)
+        if status != "OK":
+            raise RuntimeError(f"无法选择邮箱文件夹: {folder}")
+        _, values = self._conn.response("UIDVALIDITY")
+        value = values[0].decode("ascii") if values and values[0] else ""
+        if not value.isdigit():
+            raise RuntimeError("IMAP 未返回有效 UIDVALIDITY")
+        return value
+
+    def search_uids(self, after_uid: int) -> list[int]:
+        status, data = self._conn.uid(
+            "SEARCH", None, f"UID {max(1, int(after_uid) + 1)}:*"
+        )
+        if status != "OK":
+            raise RuntimeError("IMAP UID 搜索失败")
+        try:
+            return sorted(int(value) for value in (data[0] or b"").split())
+        except (TypeError, ValueError, IndexError) as exc:
+            raise RuntimeError("IMAP UID 搜索结果无效") from exc
+
+    def fetch_uid(self, uid: int) -> bytes:
+        status, data = self._conn.uid("FETCH", str(int(uid)), "(BODY.PEEK[])")
+        if status != "OK" or not data or not isinstance(data[0], tuple):
+            raise RuntimeError(f"IMAP UID {uid} 拉取失败")
+        raw = data[0][1]
+        if not isinstance(raw, bytes):
+            raise RuntimeError(f"IMAP UID {uid} 邮件内容无效")
+        return raw
+
+    def mark_uid_seen(self, uid: int):
+        status, _ = self._conn.uid(
+            "STORE", str(int(uid)), "+FLAGS", "\\Seen"
+        )
+        if status != "OK":
+            raise RuntimeError(f"IMAP UID {uid} 标记已读失败")
+
     def __enter__(self):
         self.connect()
         return self
@@ -196,6 +234,19 @@ class MailFetcher:
             media=media_items,
             attachments=attachment_items,
         )
+
+    def parse_raw_email(self, raw_bytes: bytes) -> ParsedEmail:
+        """Public MIME parser used by the durable local job worker."""
+        return self._parse_raw_email(raw_bytes)
+
+    @staticmethod
+    def extract_message_id(raw_bytes: bytes, raw_sha256: str = "") -> str:
+        msg = email.message_from_bytes(raw_bytes)
+        message_id = str(msg.get("Message-ID", "")).strip().strip("<>")
+        if message_id:
+            return message_id
+        digest = (raw_sha256 or hashlib.sha256(raw_bytes).hexdigest())[:32]
+        return f"generated-{digest}@local"
 
     # ============================================================
     # 工具方法
