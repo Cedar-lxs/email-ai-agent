@@ -40,7 +40,9 @@ class ReviewService:
         self.db.update_status(message_id, "draft_ready", body, path, "人工已编辑")
         return path
 
-    def approve(self, message_id: str, actor: str = "cli"):
+    def approve(self, message_id: str, actor: str = "cli", body: str | None = None):
+        if body is not None:
+            self.edit(message_id, body)
         row = self.require_draft(message_id)
         body = self.draft_body(row)
         job = self.delivery.store.ensure_review_job(

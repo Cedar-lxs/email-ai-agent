@@ -294,9 +294,15 @@ def approve_mail(message_id):
     """批准并发送"""
     from flask import current_app
     review = current_app.extensions["services"].review
+    data = request.get_json(silent=True) or {}
+    body = data["body"] if "body" in data else None
 
     try:
-        review.approve(message_id, actor=request.current_auth.username)
+        review.approve(
+            message_id,
+            actor=request.current_auth.username,
+            body=body,
+        )
         return jsonify({"message": "邮件已发送"})
     except Exception as e:
         return jsonify({"error": str(e)}), 500

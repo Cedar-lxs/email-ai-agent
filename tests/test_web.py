@@ -13,8 +13,23 @@ from email_agent.application.review_service import ReviewService
 from email_agent.infrastructure.database import EmailDB
 from email_agent.infrastructure.knowledge.lexical import LexicalKnowledgeRetriever
 from email_agent.infrastructure.mail_job_store import MailJobStore
-from email_agent.infrastructure.mail_sender import MailSender
+from email_agent.infrastructure.mail_sender import (
+    MailSender,
+    SmtpDeliveryResult,
+    SmtpOutcome,
+)
 from email_agent.web.app import create_app
+
+
+class CapturingSender(MailSender):
+    def __init__(self):
+        super().__init__("test", 465, "agent@test", "secret")
+        self.last_message = None
+
+    def deliver_message(self, message, timeout, before_send):
+        before_send()
+        self.last_message = message
+        return SmtpDeliveryResult(SmtpOutcome.ACCEPTED)
 
 
 class WebTests(unittest.TestCase):
@@ -25,7 +40,8 @@ class WebTests(unittest.TestCase):
         knowledge_dir.mkdir()
         (knowledge_dir / "base.md").write_text("# GPS208\n参数", encoding="utf-8")
         self.db = EmailDB(str(self.temp_root / "web.db"))
-        sender = MailSender("test", 465, "agent@test", "secret")
+        sender = CapturingSender()
+        self.sender = sender
         retriever = LexicalKnowledgeRetriever(knowledge_dir)
         delivery = DeliveryService(MailJobStore(self.db), sender)
         review = ReviewService(self.db, delivery, self.temp_root / "drafts")
@@ -116,6 +132,20 @@ class WebTests(unittest.TestCase):
         response = self.client.post("/api/mails/delete", json={"message_ids": [item["message_id"]]}, headers=self.auth_headers)
         self.assertEqual(response.status_code, 200)
         self.assertIsNone(self.db.get_email(item["message_id"]))
+
+    def test_approve_sends_the_current_edited_body_without_a_separate_save(self):
+        response = self.client.post(
+            "/api/mails/m1/approve",
+            json={"body": "这是审核后修改的最终回复。"},
+            headers=self.auth_headers,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        body = self.sender.last_message.get_payload(decode=True).decode("utf-8")
+        self.assertIn("这是审核后修改的最终回复。", body)
+        row = self.db.get_email("m1")
+        self.assertEqual(row["status"], "replied")
+        self.assertEqual(row["draft_text"], "这是审核后修改的最终回复。")
 
 
 if __name__ == "__main__":

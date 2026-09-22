@@ -27,8 +27,8 @@ export const mailApi = {
   },
   
   // 批准并发送
-  approve(messageId) {
-    return request.post(`/mails/${messagePath(messageId)}/approve`)
+  approve(messageId, body) {
+    return request.post(`/mails/${messagePath(messageId)}/approve`, { body })
   },
   
   // 拒绝草稿

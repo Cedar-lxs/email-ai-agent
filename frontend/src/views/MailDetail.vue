@@ -448,6 +448,11 @@ const handleSave = async () => {
 }
 
 const handleApprove = async () => {
+  if (!draftBody.value.trim()) {
+    ElMessage.warning('回复内容不能为空')
+    return
+  }
+
   try {
     await ElMessageBox.confirm(
       `确认发送给 ${mail.value.sender}？`,
@@ -460,7 +465,7 @@ const handleApprove = async () => {
     )
 
     approving.value = true
-    await mailApi.approve(mail.value.message_id)
+    await mailApi.approve(mail.value.message_id, draftBody.value)
     ElMessage.success('邮件已成功发送')
     router.push('/mails')
   } catch (error) {
