@@ -54,9 +54,14 @@ JOB_TRANSITIONS = {
         JobStatus.SENDING,
         JobStatus.RETRY_WAIT,
         JobStatus.DEAD_LETTER,
+        JobStatus.AWAITING_CONFIRMATION,
     },
     JobStatus.SENDING: {JobStatus.SENT, JobStatus.AWAITING_CONFIRMATION},
-    JobStatus.AWAITING_CONFIRMATION: {JobStatus.SENT, JobStatus.ESCALATED},
+    JobStatus.AWAITING_CONFIRMATION: {
+        JobStatus.SEND_PREPARED,
+        JobStatus.SENT,
+        JobStatus.ESCALATED,
+    },
     JobStatus.DEAD_LETTER: {JobStatus.PENDING, JobStatus.ESCALATED},
 }
 
@@ -87,4 +92,3 @@ def require_transition(current, target, allowed) -> None:
     }
     if target_value not in allowed_values:
         raise ValueError(f"非法状态转换: {current_value} -> {target_value}")
-

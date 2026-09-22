@@ -45,7 +45,7 @@ class ReplyPolicyTests(unittest.TestCase):
     def test_smtp_send_uses_amitres_app(self):
         sender = MailSender("smtp.example.com", 465, "agent@example.com", "secret")
         with patch("email_agent.infrastructure.mail_sender.smtplib.SMTP_SSL") as smtp_class:
-            smtp = smtp_class.return_value.__enter__.return_value
+            smtp = smtp_class.return_value
             self.assertTrue(sender.send_reply(
                 "user@example.com", "Add device", "Use the WeChat Mini Program."
             ))

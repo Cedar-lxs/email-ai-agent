@@ -225,6 +225,20 @@ class MailJobStore:
                 "SELECT * FROM outbound_deliveries WHERE id=?", (delivery_id,)
             ).fetchone()
 
+    def require_delivery(self, delivery_id: str, expected=None):
+        row = self.get_delivery(delivery_id)
+        if not row:
+            raise KeyError(delivery_id)
+        if expected is not None:
+            expected_value = expected.value if isinstance(expected, DeliveryStatus) else str(expected)
+            if row["status"] != expected_value:
+                if row["status"] == DeliveryStatus.UNCERTAIN.value:
+                    raise ValueError("投递结果未知，必须先由人工确认")
+                raise ValueError(
+                    f"投递状态不是 {expected_value}，而是 {row['status']}"
+                )
+        return row
+
     def get_events(self, job_id: str):
         with self._connect() as conn:
             return conn.execute(
@@ -363,7 +377,7 @@ class MailJobStore:
                 raise ValueError("该邮件已经存在活动投递记录") from exc
             self._append_event(
                 conn, job_id, "delivery_prepared",
-                JobStatus.PROCESSING.value if job_id else "",
+                job["status"] if job_id else "",
                 JobStatus.SEND_PREPARED.value if job_id else "",
                 created_by, delivery_id=delivery_id,
             )
@@ -427,11 +441,111 @@ class MailJobStore:
                     UPDATE mail_jobs SET status=?, lease_owner=NULL,
                         lease_expires_at=NULL, updated_at=?, finished_at=? WHERE id=?
                 """, (JobStatus.SENT.value, now, now, job["id"]))
+            conn.execute("""
+                UPDATE processed_emails SET status='replied', draft_text=?,
+                    replied_at=?, last_error='' WHERE message_id=?
+            """, (delivery["body"], now, delivery["business_message_id"]))
+            mail = conn.execute(
+                "SELECT sender FROM processed_emails WHERE message_id=?",
+                (delivery["business_message_id"],),
+            ).fetchone()
+            if mail:
+                already = conn.execute("""
+                    SELECT 1 FROM conversation_history
+                    WHERE message_id=? AND role='agent' AND content=? LIMIT 1
+                """, (delivery["business_message_id"], delivery["body"])).fetchone()
+                if not already:
+                    conn.execute("""
+                        INSERT INTO conversation_history
+                            (sender_email, message_id, role, content, created_at)
+                        VALUES (?, ?, 'agent', ?, ?)
+                    """, (
+                        mail["sender"], delivery["business_message_id"],
+                        delivery["body"], now,
+                    ))
             self._append_event(
                 conn, delivery["job_id"], "delivery_accepted",
                 delivery["status"], DeliveryStatus.ACCEPTED.value,
                 delivery_id=delivery_id,
             )
+
+    def fail_delivery_safely(self, delivery_id: str, detail: str = ""):
+        now = self._now()
+        with self._connect() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            delivery = conn.execute(
+                "SELECT * FROM outbound_deliveries WHERE id=?", (delivery_id,)
+            ).fetchone()
+            if not delivery:
+                raise KeyError(delivery_id)
+            require_transition(delivery["status"], DeliveryStatus.FAILED_SAFE.value,
+                               DELIVERY_TRANSITIONS)
+            conn.execute("""
+                UPDATE outbound_deliveries SET status=?, smtp_response=?,
+                    lease_expires_at=NULL, completed_at=? WHERE id=?
+            """, (
+                DeliveryStatus.FAILED_SAFE.value, str(detail)[:1000], now, delivery_id,
+            ))
+            self._append_event(
+                conn, delivery["job_id"], "delivery_failed_safe", delivery["status"],
+                DeliveryStatus.FAILED_SAFE.value, reason=detail,
+                delivery_id=delivery_id,
+            )
+
+    def mark_delivery_uncertain(self, delivery_id: str, detail: str = ""):
+        now = self._now()
+        with self._connect() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            delivery = conn.execute(
+                "SELECT * FROM outbound_deliveries WHERE id=?", (delivery_id,)
+            ).fetchone()
+            if not delivery:
+                raise KeyError(delivery_id)
+            require_transition(delivery["status"], DeliveryStatus.UNCERTAIN.value,
+                               DELIVERY_TRANSITIONS)
+            conn.execute("""
+                UPDATE outbound_deliveries SET status=?, smtp_response=?,
+                    lease_expires_at=NULL, completed_at=? WHERE id=?
+            """, (
+                DeliveryStatus.UNCERTAIN.value, str(detail)[:1000], now, delivery_id,
+            ))
+            if delivery["job_id"]:
+                job = conn.execute(
+                    "SELECT * FROM mail_jobs WHERE id=?", (delivery["job_id"],)
+                ).fetchone()
+                require_transition(
+                    job["status"], JobStatus.AWAITING_CONFIRMATION.value, JOB_TRANSITIONS
+                )
+                conn.execute("""
+                    UPDATE mail_jobs SET status=?, lease_owner=NULL,
+                        lease_expires_at=NULL, updated_at=? WHERE id=?
+                """, (JobStatus.AWAITING_CONFIRMATION.value, now, job["id"]))
+            self._append_event(
+                conn, delivery["job_id"], "delivery_uncertain", delivery["status"],
+                DeliveryStatus.UNCERTAIN.value, reason=detail,
+                delivery_id=delivery_id,
+            )
+
+    def cancel_uncertain_delivery(self, delivery_id: str, actor: str, reason: str):
+        now = self._now()
+        with self._connect() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            delivery = conn.execute(
+                "SELECT * FROM outbound_deliveries WHERE id=?", (delivery_id,)
+            ).fetchone()
+            if not delivery:
+                raise KeyError(delivery_id)
+            require_transition(delivery["status"], DeliveryStatus.CANCELLED.value,
+                               DELIVERY_TRANSITIONS)
+            conn.execute("""
+                UPDATE outbound_deliveries SET status=?, completed_at=? WHERE id=?
+            """, (DeliveryStatus.CANCELLED.value, now, delivery_id))
+            self._append_event(
+                conn, delivery["job_id"], "delivery_resend_authorized",
+                delivery["status"], DeliveryStatus.CANCELLED.value,
+                actor, reason, delivery_id,
+            )
+        return delivery
 
     def recover_expired(self):
         now_value = self.clock()

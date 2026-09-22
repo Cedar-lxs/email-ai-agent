@@ -3,10 +3,24 @@ SMTP 模块：通过阿里企业邮箱发送回复
 """
 import smtplib
 import re
+from dataclasses import dataclass
+from enum import Enum
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.utils import formataddr
 from datetime import datetime
+
+
+class SmtpOutcome(str, Enum):
+    ACCEPTED = "accepted"
+    SAFE_FAILURE = "safe_failure"
+    UNCERTAIN = "uncertain"
+
+
+@dataclass(frozen=True)
+class SmtpDeliveryResult:
+    outcome: SmtpOutcome
+    detail: str = ""
 
 
 def normalize_customer_terms(text: str) -> str:
@@ -48,34 +62,58 @@ class MailSender:
 
         返回: 成功 True / 失败 False
         """
+        message = self.build_reply_message(
+            to_address, subject, body, in_reply_to, "", format_type
+        )
+        result = self.deliver_message(message, 30, lambda: None)
+        return result.outcome == SmtpOutcome.ACCEPTED
+
+    def build_reply_message(self, to_address: str, subject: str, body: str,
+                            in_reply_to: str = "", email_message_id: str = "",
+                            format_type: str = "plain"):
         reply_subject = self.build_reply_subject(subject)
         body = normalize_customer_terms(body)
-
         if format_type == "html":
             msg = MIMEMultipart("alternative")
             msg.attach(MIMEText(self._strip_html(body), "plain", "utf-8"))
             msg.attach(MIMEText(body, "html", "utf-8"))
         else:
             msg = MIMEText(body, "plain", "utf-8")
-
         msg["From"] = formataddr((self.sender_name, self.account))
         msg["To"] = to_address
         msg["Subject"] = reply_subject
         msg["Date"] = datetime.now().strftime("%a, %d %b %Y %H:%M:%S +0800")
-
-        # 邮件线程关联：让回复出现在正确的对话线程里
+        if email_message_id:
+            msg["Message-ID"] = email_message_id
         if in_reply_to:
-            msg["In-Reply-To"] = f"<{in_reply_to}>"
-            msg["References"] = f"<{in_reply_to}>"
+            msg["In-Reply-To"] = f"<{in_reply_to.strip('<>')}>"
+            msg["References"] = f"<{in_reply_to.strip('<>')}>"
+        return msg
 
+    def deliver_message(self, message, timeout: float, before_send) -> SmtpDeliveryResult:
         try:
-            with smtplib.SMTP_SSL(self.server, self.port) as smtp:
-                smtp.login(self.account, self.password)
-                smtp.send_message(msg)
-            return True
-        except Exception as e:
-            print(f"[SMTP Error] 发送失败: {e}")
-            return False
+            smtp = smtplib.SMTP_SSL(self.server, self.port, timeout=timeout)
+            smtp.login(self.account, self.password)
+        except Exception as exc:
+            return SmtpDeliveryResult(SmtpOutcome.SAFE_FAILURE, self._safe_error(exc))
+        started = False
+        try:
+            started = True
+            before_send()
+            smtp.send_message(message)
+            return SmtpDeliveryResult(SmtpOutcome.ACCEPTED)
+        except Exception as exc:
+            outcome = SmtpOutcome.UNCERTAIN if started else SmtpOutcome.SAFE_FAILURE
+            return SmtpDeliveryResult(outcome, self._safe_error(exc))
+        finally:
+            try:
+                smtp.quit()
+            except Exception:
+                pass
+
+    @staticmethod
+    def _safe_error(exc: Exception) -> str:
+        return f"{type(exc).__name__}: {exc}"[:1000]
 
     def save_draft(self, to_address: str, subject: str, body: str,
                    draft_dir: str = "./drafts", message_id: str = "",
