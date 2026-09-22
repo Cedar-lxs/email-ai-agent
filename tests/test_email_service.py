@@ -199,11 +199,19 @@ class AsyncEmailServiceTests(unittest.IsolatedAsyncioTestCase):
     async def test_run_once_async_without_console_still_polls_imap(self):
         fetcher = SimpleNamespace(
             connect_async=AsyncMock(),
-            fetch_unread_async=AsyncMock(return_value=[]),
             disconnect_async=AsyncMock(),
         )
         agent = object.__new__(EmailAgent)
         agent.logger = Mock()
+        agent.mail_jobs = Mock()
+        agent.mail_jobs.jobs_ready_to_mark_seen.return_value = []
+        agent.ingestion = Mock()
+        agent.ingestion.ingest.return_value = SimpleNamespace(
+            uid_validity="7", scanned_uids=[], discovered_job_ids=[]
+        )
+        agent.worker = SimpleNamespace(run_available=AsyncMock(return_value=[]))
+        agent._cleanup_expired_spool = Mock()
+        agent.process_job_email_async = AsyncMock()
         agent._fetcher = Mock(return_value=fetcher)
         stdout = sys.stdout
         try:
@@ -214,30 +222,39 @@ class AsyncEmailServiceTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(results, [])
         fetcher.connect_async.assert_awaited_once_with()
-        fetcher.fetch_unread_async.assert_awaited_once_with()
+        agent.ingestion.ingest.assert_called_once_with(fetcher)
         fetcher.disconnect_async.assert_awaited_once_with()
 
-    async def test_run_once_async_marks_only_successful_messages_seen(self):
-        messages = [
-            SimpleNamespace(message_id="one", imap_uid="1"),
-            SimpleNamespace(message_id="two", imap_uid="2"),
-        ]
+    async def test_run_once_async_marks_only_terminal_jobs_seen(self):
         fetcher = SimpleNamespace(
             connect_async=AsyncMock(),
-            fetch_unread_async=AsyncMock(return_value=messages),
-            mark_seen_async=AsyncMock(),
             disconnect_async=AsyncMock(),
+            select_folder=Mock(return_value="7"),
+            mark_uid_seen=Mock(),
         )
         agent = object.__new__(EmailAgent)
         agent.logger = Mock()
+        agent.mail_jobs = Mock()
+        agent.mail_jobs.jobs_ready_to_mark_seen.return_value = [
+            {"id": "job-one", "uid_validity": "7", "imap_uid": 1},
+        ]
+        agent.ingestion = Mock()
+        agent.ingestion.ingest.return_value = SimpleNamespace(
+            uid_validity="7", scanned_uids=[], discovered_job_ids=[]
+        )
+        agent.worker = SimpleNamespace(
+            run_available=AsyncMock(return_value=[True, False])
+        )
+        agent._cleanup_expired_spool = Mock()
+        agent.process_job_email_async = AsyncMock()
         agent._fetcher = Mock(return_value=fetcher)
-        agent._process_emails_concurrently = AsyncMock(return_value=[True, False])
 
         results = await agent.run_once_async()
 
         self.assertEqual(results, [True, False])
-        fetcher.mark_seen_async.assert_awaited_once_with("1")
-        fetcher.disconnect_async.assert_awaited_once_with()
+        fetcher.mark_uid_seen.assert_called_once_with(1)
+        agent.mail_jobs.record_seen.assert_called_once_with("job-one", result="marked")
+        self.assertEqual(fetcher.disconnect_async.await_count, 2)
 
     async def test_concurrent_processing_respects_configured_limit(self):
         agent = object.__new__(EmailAgent)

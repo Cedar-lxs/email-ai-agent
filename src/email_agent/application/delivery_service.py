@@ -24,6 +24,11 @@ class DeliveryService:
 
     def prepare_reply(self, *, job_id, business_message_id, recipient, subject, body,
                       in_reply_to, created_by, supersedes_id=None):
+        active = self.store.get_active_delivery_for_message(business_message_id)
+        if active and active["status"] == DeliveryStatus.UNCERTAIN.value:
+            raise ValueError("该邮件存在待确认投递，必须先人工确认")
+        if active:
+            raise ValueError("该邮件已经存在活动投递记录")
         return self.store.create_delivery(
             job_id=job_id,
             business_message_id=business_message_id,

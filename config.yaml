@@ -133,3 +133,9 @@ logging:
 processing:
   # 邮件并发处理数量
   max_concurrent: 3
+  batch_size: 20
+  max_attempts: 3
+  retry_delays_seconds: [60, 300, 1800]
+  lease_seconds: 600
+  smtp_timeout: 30
+  spool_retention_days: 30

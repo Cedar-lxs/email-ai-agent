@@ -249,6 +249,78 @@ class MailJobStore:
         with self._connect() as conn:
             return conn.execute("SELECT COUNT(*) FROM mail_jobs").fetchone()[0]
 
+    def find_jobs_by_message_id(self, message_id: str):
+        with self._connect() as conn:
+            return conn.execute("""
+                SELECT * FROM mail_jobs WHERE message_id=? ORDER BY created_at, imap_uid
+            """, (message_id,)).fetchall()
+
+    def jobs_ready_to_mark_seen(self):
+        with self._connect() as conn:
+            return conn.execute("""
+                SELECT * FROM mail_jobs
+                WHERE status IN ('draft_ready','escalated','sent','dead_letter')
+                  AND seen_at IS NULL
+                ORDER BY created_at, imap_uid
+            """).fetchall()
+
+    def record_seen(self, job_id: str, result: str):
+        now = self._now()
+        with self._connect() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            row = conn.execute("SELECT * FROM mail_jobs WHERE id=?", (job_id,)).fetchone()
+            if not row:
+                raise KeyError(job_id)
+            conn.execute("""
+                UPDATE mail_jobs SET seen_at=?, seen_result=?, updated_at=? WHERE id=?
+            """, (now, str(result)[:100], now, job_id))
+            self._append_event(
+                conn, job_id, "imap_seen_synced", row["status"], row["status"],
+                reason=result,
+            )
+
+    def referenced_raw_paths(self) -> set[str]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT raw_path FROM mail_jobs WHERE raw_path != ''"
+            ).fetchall()
+        return {row["raw_path"] for row in rows}
+
+    def spool_cleanup_candidates(self, retention_days: int):
+        cutoff = self.timestamp(
+            self.clock() - timedelta(days=max(0, int(retention_days)))
+        )
+        with self._connect() as conn:
+            return conn.execute("""
+                SELECT * FROM mail_jobs
+                WHERE status IN ('draft_ready','escalated','sent')
+                  AND raw_path != '' AND updated_at<=?
+                ORDER BY updated_at
+            """, (cutoff,)).fetchall()
+
+    def record_raw_pruned(self, job_id: str):
+        now = self._now()
+        with self._connect() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            row = conn.execute("SELECT * FROM mail_jobs WHERE id=?", (job_id,)).fetchone()
+            if not row:
+                raise KeyError(job_id)
+            conn.execute(
+                "UPDATE mail_jobs SET raw_path='', updated_at=? WHERE id=?",
+                (now, job_id),
+            )
+            self._append_event(
+                conn, job_id, "raw_mail_pruned", row["status"], row["status"],
+            )
+
+    def get_active_delivery_for_message(self, business_message_id: str):
+        with self._connect() as conn:
+            return conn.execute("""
+                SELECT * FROM outbound_deliveries
+                WHERE business_message_id=? AND status IN ('prepared','sending','uncertain')
+                ORDER BY created_at DESC LIMIT 1
+            """, (business_message_id,)).fetchone()
+
     def claim_next(self, worker_id: str, lease_seconds: int):
         now_value = self.clock()
         now = self.timestamp(now_value)

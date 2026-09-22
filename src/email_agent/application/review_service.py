@@ -1,13 +1,16 @@
 """草稿人工审核应用服务。"""
 from pathlib import Path
 
+from email_agent.application.delivery_service import DeliveryUncertainError
 from email_agent.infrastructure.mail_sender import MailSender
+from email_agent.infrastructure.mail_sender import SmtpOutcome
 
 
 class ReviewService:
-    def __init__(self, db, sender, draft_dir):
+    def __init__(self, db, delivery, draft_dir):
         self.db = db
-        self.sender = sender
+        self.delivery = delivery
+        self.sender = delivery.sender
         self.draft_dir = str(draft_dir)
 
     def require_draft(self, message_id: str):
@@ -37,13 +40,24 @@ class ReviewService:
         self.db.update_status(message_id, "draft_ready", body, path, "人工已编辑")
         return path
 
-    def approve(self, message_id: str):
+    def approve(self, message_id: str, actor: str = "cli"):
         row = self.require_draft(message_id)
         body = self.draft_body(row)
-        if not self.sender.send_reply(row["sender"], row["subject"], body, message_id):
+        delivery_id = self.delivery.prepare_reply(
+            job_id=None,
+            business_message_id=message_id,
+            recipient=row["sender"],
+            subject=row["subject"],
+            body=body,
+            in_reply_to=message_id,
+            created_by=actor,
+        )
+        result = self.delivery.send_prepared(delivery_id)
+        if result.outcome == SmtpOutcome.SAFE_FAILURE:
             self.db.record_error(message_id, "人工批准后 SMTP 发送失败", keep_status=True)
             raise RuntimeError("发送失败，草稿保持待审核状态，可稍后重试")
-        self.db.update_status(message_id, "replied", body, notes="人工审核批准")
+        if result.outcome == SmtpOutcome.UNCERTAIN:
+            raise DeliveryUncertainError("SMTP 发送结果未知，等待人工确认")
 
     def reject(self, message_id: str, reason: str = "人工拒绝"):
         self.require_draft(message_id)

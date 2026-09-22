@@ -9,6 +9,10 @@ from pathlib import Path
 
 from email_agent.config import load_config
 from email_agent.application.decision_audit import build_decision_trace
+from email_agent.application.delivery_service import DeliveryService, DeliveryUncertainError
+from email_agent.application.mail_ingestion import MailIngestionService
+from email_agent.application.mail_worker import MailJobWorker
+from email_agent.domain.mail_jobs import JobStatus
 from email_agent.domain.models import RetrievalQuery
 from email_agent.domain.repositories import KnowledgeContextFormatter
 from email_agent.infrastructure.database import EmailDB
@@ -16,6 +20,9 @@ from email_agent.infrastructure.knowledge.factory import create_retriever
 from email_agent.infrastructure.llm import AIProcessor
 from email_agent.infrastructure.mail_fetcher import MailFetcher
 from email_agent.infrastructure.mail_sender import MailSender
+from email_agent.infrastructure.mail_sender import SmtpOutcome
+from email_agent.infrastructure.mail_job_store import MailJobStore
+from email_agent.infrastructure.raw_mail_spool import RawMailSpool
 from email_agent.infrastructure.attachment_storage import AttachmentStorage, format_attachment_context
 from email_agent.infrastructure.media_storage import MediaStorage
 from email_agent.infrastructure.multimodal import MultimodalAnalyzer, format_multimodal_context
@@ -71,7 +78,6 @@ class EmailAgent:
             "workflow_mode", self.config["workflow"]["mode"]
         )
         self.draft_dir = str(draft_path)
-        self.review = ReviewService(self.db, self.sender, draft_path)
         self.web_search = BochaWebSearchClient(self.config.get("web_search", {}))
         self.web_search_config = self.config.get("web_search", {})
         self.media_root = paths.data / "media"
@@ -87,8 +93,31 @@ class EmailAgent:
             product_index_config.get("enabled", True)
         ) else ProductIndex()
 
-        # 并发处理配置
-        self.max_concurrent = int(self.config.get("processing", {}).get("max_concurrent", 3))
+        processing = self.config.get("processing", {})
+        self.max_concurrent = int(processing.get("max_concurrent", 3))
+        self.mail_account = mail["account"]
+        self.mail_jobs = MailJobStore(self.db)
+        self.raw_spool = RawMailSpool(paths.data / "inbox_spool")
+        self.ingestion = MailIngestionService(
+            self.mail_jobs, self.raw_spool, self.mail_account, "INBOX",
+            batch_size=processing.get("batch_size", 20),
+        )
+        self.delivery = DeliveryService(
+            self.mail_jobs, self.sender,
+            smtp_timeout=processing.get("smtp_timeout", 30),
+            send_lease_seconds=processing.get("lease_seconds", 600),
+        )
+        self.worker = MailJobWorker(
+            self.mail_jobs, self.raw_spool,
+            parse_raw_email=self._fetcher().parse_raw_email,
+            batch_size=processing.get("batch_size", 20),
+            max_concurrent=self.max_concurrent,
+            max_attempts=processing.get("max_attempts", 3),
+            retry_delays=processing.get("retry_delays_seconds", [60, 300, 1800]),
+            lease_seconds=processing.get("lease_seconds", 600),
+        )
+        self.spool_retention_days = int(processing.get("spool_retention_days", 30))
+        self.review = ReviewService(self.db, self.delivery, draft_path)
         self.logger.info(f"EmailAgent 初始化完成: mode={self.mode}, max_concurrent={self.max_concurrent}")
         self.logger.info("=" * 60)
 
@@ -105,32 +134,76 @@ class EmailAgent:
     async def run_once_async(self):
         _safe_print(f"\n{'=' * 50}\n[{time.strftime('%Y-%m-%d %H:%M:%S')}] 开始检查新邮件")
         self.logger.info("开始新一轮邮件检查")
+        self.mail_jobs.recover_expired()
+        self._cleanup_expired_spool()
         fetcher = self._fetcher()
         try:
             await fetcher.connect_async()
-            emails = await fetcher.fetch_unread_async()
-            if not emails:
-                _safe_print("没有未读邮件")
-                self.logger.info("没有未读邮件")
-                return []
-            _safe_print(f"发现 {len(emails)} 封未读邮件")
-            self.logger.info(f"发现 {len(emails)} 封未读邮件，开始并发处理")
-
-            results = await self._process_emails_concurrently(emails)
-
-            for message, completed in zip(emails, results):
-                if completed:
-                    await fetcher.mark_seen_async(message.imap_uid)
-                    self.logger.info(f"邮件 {message.message_id} 处理完成，已标记为已读")
-                else:
-                    self.logger.warning(f"邮件 {message.message_id} 处理失败，保留未读状态")
-            return results
+            result = await asyncio.to_thread(self.ingestion.ingest, fetcher)
+            self.logger.info(
+                "UID 扫描完成: uid_validity=%s scanned=%s discovered=%s",
+                result.uid_validity, len(result.scanned_uids),
+                len(result.discovered_job_ids),
+            )
         except Exception as exc:
-            _safe_print(f"邮箱连接失败: {exc}")
-            self.logger.error(f"邮箱连接失败: {exc}", exc_info=True)
-            return []
+            _safe_print(f"邮箱收件失败，本地任务继续处理: {exc}")
+            self.logger.error("IMAP ingest failed; durable jobs will still run: %s", exc)
         finally:
             await fetcher.disconnect_async()
+
+        results = await self.worker.run_available(self.process_job_email_async)
+        terminal = self.mail_jobs.jobs_ready_to_mark_seen()
+        if terminal:
+            marker = self._fetcher()
+            try:
+                await marker.connect_async()
+                current_uid_validity = marker.select_folder("INBOX")
+                for job in terminal:
+                    if job["uid_validity"] != current_uid_validity:
+                        self.mail_jobs.record_seen(
+                            job["id"], result="uidvalidity_expired"
+                        )
+                        continue
+                    await asyncio.to_thread(marker.mark_uid_seen, job["imap_uid"])
+                    self.mail_jobs.record_seen(job["id"], result="marked")
+            except Exception as exc:
+                self.logger.warning("IMAP seen sync deferred: %s", exc)
+            finally:
+                await marker.disconnect_async()
+        return results
+
+    def _cleanup_expired_spool(self):
+        referenced = self.mail_jobs.referenced_raw_paths()
+        self.raw_spool.cleanup_orphans(referenced, grace_seconds=24 * 60 * 60)
+        for job in self.mail_jobs.spool_cleanup_candidates(self.spool_retention_days):
+            try:
+                self.raw_spool.discard(job["raw_path"])
+            except FileNotFoundError:
+                pass
+            self.mail_jobs.record_raw_pruned(job["id"])
+
+    async def process_job_email_async(self, email, job_id: str) -> JobStatus:
+        existing = self.db.get_email(email.message_id)
+        if existing and existing["status"] in {
+            "replied", "draft_ready", "escalated", "rejected", "skipped_self",
+        }:
+            if existing["status"] == "replied":
+                return JobStatus.SENT
+            if existing["status"] == "draft_ready":
+                return JobStatus.DRAFT_READY
+            return JobStatus.ESCALATED
+
+        await self._process_email_async(email, job_id=job_id)
+        row = self.db.get_email(email.message_id)
+        if not row:
+            raise RuntimeError("邮件业务状态未落库")
+        if row["status"] == "replied":
+            return JobStatus.SENT
+        if row["status"] == "draft_ready":
+            return JobStatus.DRAFT_READY
+        if row["status"] in {"escalated", "rejected", "skipped_self"}:
+            return JobStatus.ESCALATED
+        raise RuntimeError(f"邮件业务状态未完成: {row['status']}")
 
     async def _process_emails_concurrently(self, emails):
         """并发处理多封邮件"""
@@ -154,7 +227,7 @@ class EmailAgent:
                  for i, email in enumerate(emails)]
         return await asyncio.gather(*tasks, return_exceptions=False)
 
-    async def _process_email_async(self, email) -> bool:
+    async def _process_email_async(self, email, job_id: str = "") -> bool:
         """异步处理单封邮件"""
         if email.sender.lower() == self.config["mail"]["account"].lower():
             self.db.mark_processed(
@@ -165,7 +238,7 @@ class EmailAgent:
             _safe_print("售后邮箱自身邮件，已跳过以防回复循环")
             self.logger.info(f"跳过自身邮件: {email.message_id}")
             return True
-        if self.db.is_processed(email.message_id):
+        if not job_id and self.db.is_processed(email.message_id):
             _safe_print("已处理过，跳过")
             self.logger.info(f"邮件已处理过: {email.message_id}")
             return True
@@ -338,12 +411,36 @@ class EmailAgent:
             product_conflicts,
         )
         if can_auto_send:
-            sent = await asyncio.to_thread(
-                self.sender.send_reply,
-                email.sender, email.subject, reply, email.message_id,
-            )
-            if not sent:
-                raise RuntimeError("SMTP 自动回复失败")
+            if job_id:
+                delivery_id = self.delivery.prepare_reply(
+                    job_id=job_id,
+                    business_message_id=email.message_id,
+                    recipient=email.sender,
+                    subject=email.subject,
+                    body=reply,
+                    in_reply_to=email.message_id,
+                    created_by="auto",
+                )
+                delivery_result = await asyncio.to_thread(
+                    self.delivery.send_prepared, delivery_id
+                )
+                if delivery_result.outcome == SmtpOutcome.SAFE_FAILURE:
+                    raise RuntimeError(f"SMTP 自动回复尚未发送: {delivery_result.detail}")
+                if delivery_result.outcome == SmtpOutcome.UNCERTAIN:
+                    self._save_decision_trace(
+                        email, "awaiting_confirmation", intent,
+                        local_knowledge_hits=len(hits),
+                        used_web_search=used_web_search, media_count=media_count,
+                        blocking_reasons=["smtp_uncertain"],
+                    )
+                    raise DeliveryUncertainError("SMTP 发送结果未知，等待人工确认")
+            else:
+                sent = await asyncio.to_thread(
+                    self.sender.send_reply,
+                    email.sender, email.subject, reply, email.message_id,
+                )
+                if not sent:
+                    raise RuntimeError("SMTP 自动回复失败")
             self._save_decision_trace(
                 email, "auto_sent", intent, local_knowledge_hits=len(hits),
                 used_web_search=used_web_search, media_count=media_count,
@@ -353,7 +450,8 @@ class EmailAgent:
                 notes="使用博查行业通用参考自动发送"
                 if used_web_search else ""
             )
-            self.db.save_conversation(email.sender, email.message_id, "agent", reply)
+            if not job_id:
+                self.db.save_conversation(email.sender, email.message_id, "agent", reply)
             _safe_print(f"自动回复已发送，主题: {self.sender.build_reply_subject(email.subject)}")
             self.logger.info(f"邮件 {email.message_id} 自动回复已发送")
             return True

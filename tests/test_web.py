@@ -8,9 +8,11 @@ from types import SimpleNamespace
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from email_agent.application.knowledge_service import KnowledgeService
+from email_agent.application.delivery_service import DeliveryService
 from email_agent.application.review_service import ReviewService
 from email_agent.infrastructure.database import EmailDB
 from email_agent.infrastructure.knowledge.lexical import LexicalKnowledgeRetriever
+from email_agent.infrastructure.mail_job_store import MailJobStore
 from email_agent.infrastructure.mail_sender import MailSender
 from email_agent.web.app import create_app
 
@@ -25,7 +27,8 @@ class WebTests(unittest.TestCase):
         self.db = EmailDB(str(self.temp_root / "web.db"))
         sender = MailSender("test", 465, "agent@test", "secret")
         retriever = LexicalKnowledgeRetriever(knowledge_dir)
-        review = ReviewService(self.db, sender, self.temp_root / "drafts")
+        delivery = DeliveryService(MailJobStore(self.db), sender)
+        review = ReviewService(self.db, delivery, self.temp_root / "drafts")
         knowledge = KnowledgeService(knowledge_dir, retriever)
         self.db.mark_processed("m1", "GPS208", "customer@test", "技术参数咨询",
                                "neutral", "draft_ready", "客户问题")
