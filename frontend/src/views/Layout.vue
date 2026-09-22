@@ -19,6 +19,17 @@
           <span>邮件列表</span>
           <el-badge v-if="counts.draft_ready" :value="counts.draft_ready" class="menu-badge" />
         </el-menu-item>
+
+        <el-menu-item index="/operations">
+          <el-icon><Warning /></el-icon>
+          <span>异常处理</span>
+          <el-badge
+            v-if="operations.total_attention"
+            :value="operations.total_attention"
+            class="menu-badge"
+            type="danger"
+          />
+        </el-menu-item>
         
         <el-menu-item index="/knowledge">
           <el-icon><Document /></el-icon>
@@ -65,7 +76,7 @@
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessageBox } from 'element-plus'
-import { Message, Document, Setting, User, SwitchButton } from '@element-plus/icons-vue'
+import { Message, Document, Setting, User, SwitchButton, Warning } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/store/auth'
 import { mailApi } from '@/api/mail'
 
@@ -80,9 +91,11 @@ const counts = ref({
 })
 
 const mode = ref('semi_auto')
+const operations = ref({ total_attention: 0 })
 
 const activeMenu = computed(() => {
   if (route.path.startsWith('/mails')) return '/mails'
+  if (route.path.startsWith('/operations')) return '/operations'
   if (route.path.startsWith('/knowledge')) return '/knowledge'
   return route.path
 })
@@ -91,6 +104,7 @@ const loadStats = async () => {
   try {
     const data = await mailApi.getStats()
     counts.value = data.counts || {}
+    operations.value = data.operations || { total_attention: 0 }
     mode.value = data.mode || 'semi_auto'
   } catch (error) {
     console.error('加载统计信息失败:', error)
@@ -113,17 +127,20 @@ const handleLogout = async () => {
 }
 
 const handleModeChange = event => { mode.value = event.detail || 'semi_auto' }
+const handleOperationsUpdate = () => { loadStats() }
 let statsTimer
 
 onMounted(() => {
   loadStats()
   // 每30秒刷新一次统计
   window.addEventListener('workflow-mode-changed', handleModeChange)
+  window.addEventListener('operations-updated', handleOperationsUpdate)
   statsTimer = setInterval(loadStats, 30000)
 })
 onBeforeUnmount(() => {
   clearInterval(statsTimer)
   window.removeEventListener('workflow-mode-changed', handleModeChange)
+  window.removeEventListener('operations-updated', handleOperationsUpdate)
 })
 </script>
 

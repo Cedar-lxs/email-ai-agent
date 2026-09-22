@@ -25,6 +25,11 @@ const routes = [
         component: () => import('@/views/MailDetail.vue')
       },
       {
+        path: '/operations',
+        name: 'Operations',
+        component: () => import('@/views/Operations.vue')
+      },
+      {
         path: '/knowledge/new',
         name: 'KnowledgeCreate',
         component: () => import('@/views/KnowledgeEditor.vue')

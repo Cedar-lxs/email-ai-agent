@@ -269,8 +269,11 @@ class MailJobStore:
                 values,
             ).fetchone()[0]
             rows = conn.execute(f"""
-                SELECT * FROM mail_jobs WHERE status IN ({placeholders})
-                ORDER BY updated_at, created_at, id LIMIT ? OFFSET ?
+                SELECT j.*, p.subject AS subject, p.sender AS sender
+                FROM mail_jobs AS j
+                LEFT JOIN processed_emails AS p ON p.message_id=j.message_id
+                WHERE j.status IN ({placeholders})
+                ORDER BY j.updated_at, j.created_at, j.id LIMIT ? OFFSET ?
             """, (*values, page_size, offset)).fetchall()
         return {
             "jobs": [dict(row) for row in rows],
@@ -281,9 +284,12 @@ class MailJobStore:
 
     def get_job_detail(self, job_id: str):
         with self._connect() as conn:
-            job = conn.execute(
-                "SELECT * FROM mail_jobs WHERE id=?", (job_id,)
-            ).fetchone()
+            job = conn.execute("""
+                SELECT j.*, p.subject AS subject, p.sender AS sender
+                FROM mail_jobs AS j
+                LEFT JOIN processed_emails AS p ON p.message_id=j.message_id
+                WHERE j.id=?
+            """, (job_id,)).fetchone()
             if not job:
                 return None
             deliveries = conn.execute("""

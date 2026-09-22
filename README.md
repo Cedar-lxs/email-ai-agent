@@ -6,7 +6,7 @@
 
 ## 功能特性
 
-- 通过 IMAP 异步拉取未读邮件，使用 `Message-ID` 去重，成功处理后才标记为已读。
+- 通过 IMAP UID/UIDVALIDITY 增量发现邮件，先将原始 RFC 822 邮件原子保存到本地暂存区，再推进持久化任务。
 - 使用 `asyncio` 并发处理多封邮件，可通过 `processing.max_concurrent` 控制并发上限。
 - LLM 请求使用 `httpx.AsyncClient` 原生异步调用；标准库 IMAP 和 SMTP 操作移入工作线程，避免阻塞事件循环。
 - AI 意图分类、摘要、关键词、情绪、紧急程度和人工介入判断。
@@ -18,7 +18,8 @@
 - Web 邮件详情展示处理决策、阻断原因、附件清单、附件提取状态和下载入口。
 - 半自动模式下生成草稿，等待人工编辑和批准。
 - 全自动模式下仅允许配置中的低风险技术类型直接回复。
-- SMTP 发送失败时保留草稿状态，便于稍后重试。
+- SMTP 投递前先写入 SQLite 投递账本；发送前明确失败可重试，发送结果不明时停止自动重发并等待人工确认。
+- 提供异常处理中心，支持查看重试、死信和待确认发送任务，并审计人工重试、转交、确认与授权重发。
 - 提供本机 Web 审核工作台和 CSRF 防护。
 - 支持知识文件上传、解析校验、失败回滚、删除和索引重建。
 - 支持 Windows 邮件轮询计划任务和 Web 登录自启。
@@ -99,7 +100,7 @@ $env:AI_API_KEY="your-ai-api-key"
 - `product_index`：从知识库构建结构化产品事实索引。
 - `workflow`：半自动或全自动模式、草稿目录和自动回复类型。
 - `database`：SQLite 数据库路径。
-- `processing.max_concurrent`：同时处理的邮件数量，默认值为 `3`。
+- `processing`：批量大小、并发数、最大尝试次数、重试间隔、任务租约、SMTP 超时和原始邮件保留时间。
 
 建议首次运行保持：
 
@@ -120,7 +121,15 @@ rag:
 
 processing:
   max_concurrent: 3
+  batch_size: 20
+  max_attempts: 3
+  retry_delays_seconds: [60, 300, 1800]
+  lease_seconds: 600
+  smtp_timeout: 30
+  spool_retention_days: 30
 ```
+
+原始邮件保存在 `data/inbox_spool/`。已生成草稿、已转人工或已发送的任务在超过 `spool_retention_days` 后清理原始文件；待处理、重试、死信和待确认发送任务不会因保留期到期而删除。
 
 `hybrid` 已内置 BM25、型号精确召回、DashScope 向量召回、RRF 融合和 CPU 本地重排。Embedding 不可用时自动降级为 BM25，低置信度结果转人工。使用可直接调用百炼 API 的 `EMBEDDING_API_KEY` 后运行 `python main.py rag-build` 构建增量向量索引。
 
@@ -179,6 +188,8 @@ Web 工作台支持：
 - 查看客户原始邮件和 AI 草稿；
 - 查看图片/视频识别、处理决策、普通附件和附件提取状态；
 - 编辑、批准或拒绝草稿；
+- 在异常处理中心查看失败任务、事件记录和发送标识；
+- 对死信重新分析或转人工，对发送结果不明的邮件确认已发送、明确授权重发或转人工；
 - 删除无效邮件及其草稿；
 - 上传和删除知识文件；
 - 切换半自动和全自动模式。
@@ -187,7 +198,7 @@ Web 工作台支持：
 
 | 命令 | 说明 |
 | --- | --- |
-| `python main.py once` | 拉取并处理一次未读邮件 |
+| `python main.py once` | 增量发现新邮件并处理本地持久化任务 |
 | `python main.py forever` | 按配置的间隔持续轮询 |
 | `python main.py test` | 测试 IMAP 连接，不发送邮件 |
 | `python main.py drafts` | 列出待审核草稿 |
@@ -218,11 +229,12 @@ python main.py install-task
 
 每次轮询的执行顺序如下：
 
-1. 异步连接 IMAP 并搜索 `INBOX` 中的 `UNSEEN` 邮件；
-2. 拉取并解析全部未读邮件；
-3. 按 `processing.max_concurrent` 并发执行意图识别、翻译、知识检索和回复生成；
-4. 成功生成草稿、完成发送、转人工或安全跳过后，才将对应邮件标记为已读；
-5. 处理异常的邮件保留未读，等待下一轮重试。
+1. 读取邮箱 `UIDVALIDITY` 和上次扫描 UID，增量发现尚未入账的邮件；
+2. 将原始邮件原子保存到 `data/inbox_spool/`，并在 SQLite 中创建待处理任务；
+3. 恢复租约过期的任务，再按 `processing.max_concurrent` 从本地暂存区并发处理；
+4. 明确的临时错误按配置退避重试，超过最大尝试次数后进入死信；
+5. 草稿、转人工、已发送或死信任务才同步 IMAP 已读状态；邮箱暂时不可用时，本地已入账任务仍可继续处理；
+6. SMTP 进入发送阶段后若结果不明，任务进入“待确认发送”，系统不会自动再次发送。
 
 查看状态：
 
@@ -311,13 +323,18 @@ email-ai-agent/
 │  │  ├─ models.py                 # 领域数据模型
 │  │  └─ repositories.py           # 检索协议和上下文格式化
 │  ├─ application/
+│  │  ├─ delivery_service.py       # 持久化 SMTP 投递与人工确认
 │  │  ├─ email_service.py          # 邮件处理编排
+│  │  ├─ mail_ingestion.py         # UID 增量发现与原始邮件入账
+│  │  ├─ mail_worker.py            # 带租约的持久化任务执行器
 │  │  ├─ review_service.py         # 草稿审核服务
 │  │  └─ knowledge_service.py      # 知识文件管理服务
 │  ├─ infrastructure/
 │  │  ├─ database.py               # SQLite
 │  │  ├─ mail_fetcher.py           # IMAP
+│  │  ├─ mail_job_store.py         # 邮件任务、投递和事件 SQLite 账本
 │  │  ├─ mail_sender.py            # SMTP 与草稿文件
+│  │  ├─ raw_mail_spool.py         # 原始 RFC 822 邮件暂存
 │  │  ├─ media_storage.py          # 邮件图片、视频和关键帧本地存储
 │  │  ├─ attachment_storage.py     # 普通附件保存和文本提取
 │  │  ├─ multimodal.py             # DeepSeek 多模态识别
@@ -349,6 +366,7 @@ email-ai-agent/
 - 知识目录：`knowledge/`
 - 多模态媒体目录：`data/media/`
 - 普通附件目录：`data/attachments/`
+- 原始邮件暂存目录：`data/inbox_spool/`
 
 常见邮件状态：
 
@@ -363,6 +381,16 @@ email-ai-agent/
 | `skipped_self` | 发件人为自身账号，已跳过 |
 
 SQLite 使用现有 schema 和数据文件，不需要执行破坏性迁移。
+
+持久化任务的关注状态：
+
+| 状态 | 含义 | 人工操作 |
+| --- | --- | --- |
+| `retry_wait` | 明确失败，等待自动重试 | 可转人工 |
+| `dead_letter` | 达到最大尝试次数 | 可重新分析或转人工 |
+| `awaiting_confirmation` | SMTP 已进入发送阶段，但结果无法确认 | 可确认已发送、明确授权新邮件重发或转人工 |
+
+授权重发必须填写原因，并创建新的外发 `Message-ID`。系统不会对 `sending` 或 `awaiting_confirmation` 状态自动重发，避免客户收到重复回复。
 
 多模态媒体清单保存在 `processed_emails.media_manifest`，识别结果保存在 `processed_emails.multimodal_trace`。普通附件清单保存在 `processed_emails.attachment_manifest`，处理决策保存在 `processed_emails.decision_trace`。这些数据用于审核追溯和 Web 详情页展示，不会写入知识库索引。
 
@@ -387,7 +415,7 @@ python -m compileall -q src main.py web_app.py tests
 - 图片附件、正文内嵌图片、视频关键帧、多模态识别结果、普通附件提取、产品索引和 Web 审核展示；
 - 中文型号和技术术语；
 - 知识文件上传、删除和失败回滚；
-- 草稿编辑、批准和 SMTP 失败保留；
+- 草稿编辑、可靠批准、SMTP 投递账本、结果不明阻断重发和人工处置审计；
 - 临时 SQLite 数据兼容；
 - Web URL、模板和 CSRF 校验。
 
@@ -408,17 +436,27 @@ python -m compileall -q src main.py web_app.py tests
 3. 是否使用客户端专用密码；
 4. `config.yaml` 中服务器地址和端口是否与邮箱服务商一致。
 
-### 邮箱中存在未读邮件，但任务没有拉取
+### 邮箱中存在新邮件，但任务没有发现
 
 按以下顺序检查：
 
 1. 手动执行 `python main.py test`，确认 IMAP 登录正常；
-2. 执行 `python main.py once`，观察是否能发现 `UNSEEN` 邮件；
+2. 执行 `python main.py once`，观察 UID 扫描、任务发现和暂存日志；
 3. 查看 `Get-ScheduledTaskInfo -TaskName "EmailAIAgentSemiAuto"` 的 `LastTaskResult`；
 4. 查看 `logs/email_agent.log` 是否出现“开始新一轮邮件检查”；
 5. 如果任务配置异常，重新执行 `python main.py install-task`。
 
-计划任务成功执行时 `LastTaskResult` 应为 `0`。邮件只有在成功生成草稿、完成发送、转人工或安全跳过后才会标记为已读；失败邮件会保持未读以便重试。
+计划任务成功执行时 `LastTaskResult` 应为 `0`。系统按 UID/UIDVALIDITY 记住扫描位置，不依赖未读标记去重。已入账任务可在 IMAP 暂时不可用时继续处理；需要人工关注的任务请在 Web 工作台“异常处理”中查看。
+
+### 发送结果不明或任务进入死信
+
+进入 Web 工作台的“异常处理”：
+
+1. `死信` 可在修复配置或知识问题后选择“重新分析”，也可以直接“转人工”；
+2. `待确认发送` 应先到邮箱服务商的已发送目录核对；
+3. 已找到原邮件时选择“确认已发送”，该操作不会调用 SMTP；
+4. 只有明确确认原邮件未发送时，才选择“确认未发送并重发”，系统会创建一封新的外发邮件并记录原因；
+5. 无法确认时选择“转人工”，不要反复点击批准或尝试绕过异常中心。
 
 ### 邮件生成草稿但没有自动发送
 

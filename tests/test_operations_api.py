@@ -137,6 +137,12 @@ class OperationsApiTests(unittest.TestCase):
             {item["status"] for item in payload["jobs"]},
             {"dead_letter", "awaiting_confirmation"},
         )
+        uncertain = next(
+            item for item in payload["jobs"]
+            if item["status"] == "awaiting_confirmation"
+        )
+        self.assertEqual(uncertain["subject"], "Question")
+        self.assertEqual(uncertain["sender"], "customer@example.com")
 
     def test_confirm_sent_requires_csrf_and_reason_and_never_calls_smtp(self):
         delivery_id, _ = self._uncertain_delivery()
