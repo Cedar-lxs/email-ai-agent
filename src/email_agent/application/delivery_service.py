@@ -27,6 +27,8 @@ class DeliveryService:
         active = self.store.get_active_delivery_for_message(business_message_id)
         if active and active["status"] == DeliveryStatus.UNCERTAIN.value:
             raise ValueError("该邮件存在待确认投递，必须先人工确认")
+        if active and active["status"] == DeliveryStatus.ACCEPTED.value:
+            raise ValueError("该邮件已经发送，不能创建第二次投递")
         if active:
             raise ValueError("该邮件已经存在活动投递记录")
         return self.store.create_delivery(
@@ -76,15 +78,16 @@ class DeliveryService:
         if not str(actor).strip() or not str(reason).strip():
             raise ValueError("授权重发必须填写操作者和原因")
         original = self.store.require_delivery(delivery_id, DeliveryStatus.UNCERTAIN)
-        self.store.cancel_uncertain_delivery(delivery_id, actor, reason)
-        replacement_id = self.prepare_reply(
-            job_id=original["job_id"],
-            business_message_id=original["business_message_id"],
-            recipient=original["recipient"],
-            subject=original["subject"],
-            body=original["body"],
-            in_reply_to=original["in_reply_to"],
-            created_by=actor,
-            supersedes_id=delivery_id,
+        replacement_id = self.store.replace_uncertain_delivery(
+            delivery_id,
+            email_message_id=self._message_id(),
+            actor=actor,
+            reason=reason,
         )
-        return replacement_id, self.send_prepared(replacement_id)
+        result = self.send_prepared(replacement_id)
+        if result.outcome == SmtpOutcome.SAFE_FAILURE and original["job_id"]:
+            self.store.dead_letter_authorized_resend(
+                original["job_id"], actor,
+                result.detail or "SMTP 尚未开始发送",
+            )
+        return replacement_id, result

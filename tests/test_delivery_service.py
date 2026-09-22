@@ -134,6 +134,29 @@ class DeliveryServiceTests(unittest.TestCase):
         history = self.db.get_history_for_sender("customer@example.com")
         self.assertEqual([row["content"] for row in history], ["Answer accepted"])
 
+    def test_accepted_delivery_blocks_a_second_automatic_delivery_for_same_message(self):
+        first_id = self._prepared("duplicate")
+        self.sender.deliver_message.side_effect = self._after_start(SmtpOutcome.ACCEPTED)
+        self.service.send_prepared(first_id)
+
+        second_job_id = "job-duplicate-copy"
+        self.store.record_discovery(
+            job_id=second_job_id, account="support@example.com", folder="INBOX",
+            uid_validity="8", imap_uid=999,
+            message_id="duplicate@example.com", raw_path="copy.eml", raw_sha256="hash",
+        )
+        self.store.claim_next("worker-2", lease_seconds=60)
+        with self.assertRaisesRegex(ValueError, "已经发送"):
+            self.service.prepare_reply(
+                job_id=second_job_id,
+                business_message_id="duplicate@example.com",
+                recipient="customer@example.com",
+                subject="Question duplicate",
+                body="Answer duplicate",
+                in_reply_to="duplicate@example.com",
+                created_by="auto",
+            )
+
     def test_confirm_sent_does_not_call_smtp(self):
         delivery_id = self._prepared("confirm")
         self.sender.deliver_message.side_effect = self._after_start(
@@ -169,6 +192,26 @@ class DeliveryServiceTests(unittest.TestCase):
             replacement["email_message_id"],
             self.store.get_delivery(delivery_id)["email_message_id"],
         )
+
+    def test_authorized_resend_safe_failure_moves_job_to_visible_dead_letter(self):
+        delivery_id = self._prepared("resend-safe")
+        self.sender.deliver_message.side_effect = self._after_start(
+            SmtpOutcome.UNCERTAIN, "timeout"
+        )
+        self.service.send_prepared(delivery_id)
+        self.sender.deliver_message.side_effect = None
+        self.sender.deliver_message.return_value = SmtpDeliveryResult(
+            SmtpOutcome.SAFE_FAILURE, "login"
+        )
+
+        replacement_id, result = self.service.authorize_resend(
+            delivery_id, actor="admin", reason="服务商确认原邮件未接收"
+        )
+
+        self.assertEqual(result.outcome, SmtpOutcome.SAFE_FAILURE)
+        self.assertEqual(self.store.get_delivery(replacement_id)["status"], "failed_safe")
+        self.assertEqual(self.store.get_job("job-resend-safe")["status"], "dead_letter")
+        self.assertEqual(self.store.get_operation_counts()["dead_letter"], 1)
 
 
 class MailSenderTransportTests(unittest.TestCase):

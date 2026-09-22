@@ -53,9 +53,11 @@ JOB_TRANSITIONS = {
     JobStatus.SEND_PREPARED: {
         JobStatus.SENDING,
         JobStatus.RETRY_WAIT,
+        JobStatus.DRAFT_READY,
         JobStatus.DEAD_LETTER,
         JobStatus.AWAITING_CONFIRMATION,
     },
+    JobStatus.DRAFT_READY: {JobStatus.SEND_PREPARED},
     JobStatus.SENDING: {JobStatus.SENT, JobStatus.AWAITING_CONFIRMATION},
     JobStatus.AWAITING_CONFIRMATION: {
         JobStatus.SEND_PREPARED,

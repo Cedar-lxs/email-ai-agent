@@ -19,6 +19,7 @@ from email_agent.domain.models import (
 )
 from email_agent.infrastructure.attachment_storage import StoredAttachment
 from email_agent.infrastructure.database import EmailDB
+from email_agent.infrastructure.mail_sender import SmtpDeliveryResult, SmtpOutcome
 from email_agent.infrastructure.product_index import ProductRecord
 
 
@@ -173,6 +174,10 @@ class MultimodalEmailServiceTests(unittest.IsolatedAsyncioTestCase):
             send_reply=Mock(return_value=True),
             build_reply_subject=Mock(return_value="Re: GS105 offline"),
         )
+        agent.delivery = SimpleNamespace(
+            prepare_reply=Mock(return_value="delivery-1"),
+            send_prepared=Mock(return_value=SmtpDeliveryResult(SmtpOutcome.ACCEPTED)),
+        )
         return agent
 
     async def test_semi_auto_analyzes_media_saves_trace_and_enriches_retrieval(self):
@@ -228,7 +233,9 @@ class MultimodalEmailServiceTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(
             self.db.parse_attachment_manifest(row)[0]["extraction_status"], "extracted",
         )
-        agent.sender.send_reply.assert_called_once()
+        agent.delivery.prepare_reply.assert_called_once()
+        agent.delivery.send_prepared.assert_called_once_with("delivery-1")
+        agent.sender.send_reply.assert_not_called()
 
     async def test_attachment_extraction_error_creates_draft_instead_of_auto_sending(self):
         agent = self.agent(MultimodalObservation(), mode="full_auto")
@@ -407,7 +414,9 @@ class MultimodalEmailServiceTests(unittest.IsolatedAsyncioTestCase):
         decision_trace = self.db.parse_decision_trace(row)
         self.assertEqual(decision_trace["action"], "auto_sent")
         self.assertTrue(decision_trace["used_web_search"])
-        agent.sender.send_reply.assert_called_once()
+        agent.delivery.prepare_reply.assert_called_once()
+        agent.delivery.send_prepared.assert_called_once_with("delivery-1")
+        agent.sender.send_reply.assert_not_called()
 
     async def test_product_management_conflict_blocks_full_auto_send_and_records_reason(self):
         observation = MultimodalObservation(

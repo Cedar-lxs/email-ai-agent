@@ -61,11 +61,33 @@ class ReviewTests(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             self.service.approve("m1")
         self.assertEqual(self.db.get_email("m1")["status"], "draft_ready")
+        jobs = self.store.find_jobs_by_message_id("m1")
+        self.assertEqual(jobs[0]["status"], "draft_ready")
+
+    def test_approval_reuses_the_existing_draft_job(self):
+        self.store.record_discovery(
+            job_id="job-draft", account="agent@test", folder="INBOX",
+            uid_validity="7", imap_uid=7, message_id="m1",
+            raw_path="mail.eml", raw_sha256="hash",
+        )
+        self.store.claim_next("worker", lease_seconds=60)
+        self.store.complete_job("job-draft", "draft_ready", actor="worker")
+
+        self.service.approve("m1", actor="admin")
+
+        jobs = self.store.find_jobs_by_message_id("m1")
+        self.assertEqual(len(jobs), 1)
+        self.assertEqual(jobs[0]["id"], "job-draft")
+        self.assertEqual(jobs[0]["status"], "sent")
 
     def test_uncertain_send_blocks_second_approval(self):
         self.sender.result = SmtpDeliveryResult(SmtpOutcome.UNCERTAIN, "timeout")
         with self.assertRaises(DeliveryUncertainError):
             self.service.approve("m1", actor="admin")
+        jobs = self.store.find_jobs_by_message_id("m1")
+        self.assertEqual(len(jobs), 1)
+        self.assertEqual(jobs[0]["status"], "awaiting_confirmation")
+        self.assertEqual(self.store.get_operation_counts()["awaiting_confirmation"], 1)
         with self.assertRaisesRegex(ValueError, "待确认"):
             self.service.approve("m1", actor="admin")
         self.assertEqual(self.sender.calls, 1)

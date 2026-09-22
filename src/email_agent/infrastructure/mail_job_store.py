@@ -394,6 +394,66 @@ class MailJobStore:
                 SELECT * FROM mail_jobs WHERE message_id=? ORDER BY created_at, imap_uid
             """, (message_id,)).fetchall()
 
+    def ensure_review_job(self, message_id: str, account: str, actor: str):
+        """Return the current job, or create an audited job for a legacy draft."""
+        now = self._now()
+        with self._connect() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            row = conn.execute("""
+                SELECT * FROM mail_jobs WHERE message_id=?
+                ORDER BY CASE status
+                    WHEN 'awaiting_confirmation' THEN 0
+                    WHEN 'draft_ready' THEN 1
+                    ELSE 2
+                END, created_at DESC, id DESC
+                LIMIT 1
+            """, (message_id,)).fetchone()
+            if row:
+                return row
+
+            folder = "__manual_review__"
+            uid_validity = "legacy"
+            imap_uid = conn.execute("""
+                SELECT COALESCE(MIN(imap_uid), 0) - 1 FROM mail_jobs
+                WHERE account=? AND folder=? AND uid_validity=?
+            """, (account, folder, uid_validity)).fetchone()[0]
+            job_id = uuid.uuid4().hex
+            conn.execute("""
+                INSERT INTO mail_jobs
+                    (id, account, folder, uid_validity, imap_uid, message_id,
+                     raw_path, raw_sha256, status, seen_at, seen_result,
+                     created_at, updated_at, finished_at)
+                VALUES (?, ?, ?, ?, ?, ?, '', '', ?, ?, 'manual_review', ?, ?, ?)
+            """, (
+                job_id, account, folder, uid_validity, imap_uid, message_id,
+                JobStatus.DRAFT_READY.value, now, now, now, now,
+            ))
+            self._append_event(
+                conn, job_id, "manual_review_job_created", "",
+                JobStatus.DRAFT_READY.value, actor,
+                reason="历史草稿进入可靠投递流程",
+            )
+            return conn.execute(
+                "SELECT * FROM mail_jobs WHERE id=?", (job_id,)
+            ).fetchone()
+
+    def restore_draft_after_safe_failure(self, job_id: str, actor: str, reason: str):
+        now = self._now()
+        with self._connect() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            row = conn.execute("SELECT * FROM mail_jobs WHERE id=?", (job_id,)).fetchone()
+            if not row:
+                raise KeyError(job_id)
+            require_transition(row["status"], JobStatus.DRAFT_READY.value, JOB_TRANSITIONS)
+            conn.execute("""
+                UPDATE mail_jobs SET status=?, lease_owner=NULL, lease_expires_at=NULL,
+                    updated_at=?, finished_at=? WHERE id=?
+            """, (JobStatus.DRAFT_READY.value, now, now, job_id))
+            self._append_event(
+                conn, job_id, "draft_send_failed_safe", row["status"],
+                JobStatus.DRAFT_READY.value, actor, reason,
+            )
+
     def jobs_ready_to_mark_seen(self):
         with self._connect() as conn:
             return conn.execute("""
@@ -456,7 +516,8 @@ class MailJobStore:
         with self._connect() as conn:
             return conn.execute("""
                 SELECT * FROM outbound_deliveries
-                WHERE business_message_id=? AND status IN ('prepared','sending','uncertain')
+                WHERE business_message_id=?
+                  AND status IN ('prepared','sending','uncertain','accepted')
                 ORDER BY created_at DESC LIMIT 1
             """, (business_message_id,)).fetchone()
 
@@ -555,6 +616,18 @@ class MailJobStore:
         now = self._now()
         with self._connect() as conn:
             conn.execute("BEGIN IMMEDIATE")
+            blocking = conn.execute("""
+                SELECT * FROM outbound_deliveries
+                WHERE business_message_id=?
+                  AND status IN ('prepared','sending','uncertain','accepted')
+                ORDER BY created_at DESC LIMIT 1
+            """, (business_message_id,)).fetchone()
+            if blocking:
+                if blocking["status"] == DeliveryStatus.ACCEPTED.value:
+                    raise ValueError("该邮件已经发送，不能创建第二次投递")
+                if blocking["status"] == DeliveryStatus.UNCERTAIN.value:
+                    raise ValueError("该邮件存在待确认投递，必须先人工确认")
+                raise ValueError("该邮件已经存在活动投递记录")
             if job_id:
                 job = conn.execute("SELECT * FROM mail_jobs WHERE id=?", (job_id,)).fetchone()
                 if not job:
@@ -759,6 +832,92 @@ class MailJobStore:
                 actor, reason, delivery_id,
             )
         return delivery
+
+    def replace_uncertain_delivery(self, delivery_id: str, *, email_message_id: str,
+                                   actor: str, reason: str):
+        """Cancel an uncertain delivery and prepare its replacement atomically."""
+        now = self._now()
+        replacement_id = uuid.uuid4().hex
+        with self._connect() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            original = conn.execute(
+                "SELECT * FROM outbound_deliveries WHERE id=?", (delivery_id,)
+            ).fetchone()
+            if not original:
+                raise KeyError(delivery_id)
+            require_transition(
+                original["status"], DeliveryStatus.CANCELLED.value,
+                DELIVERY_TRANSITIONS,
+            )
+            accepted = conn.execute("""
+                SELECT id FROM outbound_deliveries
+                WHERE business_message_id=? AND status='accepted' LIMIT 1
+            """, (original["business_message_id"],)).fetchone()
+            if accepted:
+                raise ValueError("该邮件已经发送，不能创建第二次投递")
+
+            conn.execute("""
+                UPDATE outbound_deliveries SET status=?, completed_at=? WHERE id=?
+            """, (DeliveryStatus.CANCELLED.value, now, delivery_id))
+
+            if original["job_id"]:
+                job = conn.execute(
+                    "SELECT * FROM mail_jobs WHERE id=?", (original["job_id"],)
+                ).fetchone()
+                require_transition(
+                    job["status"], JobStatus.SEND_PREPARED.value, JOB_TRANSITIONS
+                )
+                conn.execute("""
+                    UPDATE mail_jobs SET status=?, lease_owner=NULL,
+                        lease_expires_at=NULL, updated_at=?, finished_at=NULL
+                    WHERE id=?
+                """, (JobStatus.SEND_PREPARED.value, now, job["id"]))
+
+            conn.execute("""
+                INSERT INTO outbound_deliveries
+                    (id, job_id, business_message_id, email_message_id, recipient,
+                     subject, body, in_reply_to, body_sha256, status, created_by,
+                     supersedes_id, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                replacement_id, original["job_id"], original["business_message_id"],
+                email_message_id, original["recipient"], original["subject"],
+                original["body"], original["in_reply_to"], original["body_sha256"],
+                DeliveryStatus.PREPARED.value, actor, delivery_id, now,
+            ))
+            self._append_event(
+                conn, original["job_id"], "delivery_resend_authorized",
+                original["status"], DeliveryStatus.CANCELLED.value,
+                actor, reason, delivery_id,
+            )
+            self._append_event(
+                conn, original["job_id"], "delivery_prepared",
+                JobStatus.AWAITING_CONFIRMATION.value if original["job_id"] else "",
+                JobStatus.SEND_PREPARED.value if original["job_id"] else "",
+                actor, reason, replacement_id,
+                metadata={"supersedes_id": delivery_id},
+            )
+        return replacement_id
+
+    def dead_letter_authorized_resend(self, job_id: str, actor: str, reason: str):
+        now = self._now()
+        with self._connect() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            row = conn.execute("SELECT * FROM mail_jobs WHERE id=?", (job_id,)).fetchone()
+            if not row:
+                raise KeyError(job_id)
+            require_transition(row["status"], JobStatus.DEAD_LETTER.value, JOB_TRANSITIONS)
+            conn.execute("""
+                UPDATE mail_jobs SET status=?, lease_owner=NULL, lease_expires_at=NULL,
+                    next_attempt_at=NULL, last_error=?, updated_at=?, finished_at=?
+                WHERE id=?
+            """, (
+                JobStatus.DEAD_LETTER.value, str(reason)[:1000], now, now, job_id,
+            ))
+            self._append_event(
+                conn, job_id, "authorized_resend_failed_safe", row["status"],
+                JobStatus.DEAD_LETTER.value, actor, reason,
+            )
 
     def recover_expired(self):
         now_value = self.clock()

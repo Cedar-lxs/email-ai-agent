@@ -411,36 +411,28 @@ class EmailAgent:
             product_conflicts,
         )
         if can_auto_send:
-            if job_id:
-                delivery_id = self.delivery.prepare_reply(
-                    job_id=job_id,
-                    business_message_id=email.message_id,
-                    recipient=email.sender,
-                    subject=email.subject,
-                    body=reply,
-                    in_reply_to=email.message_id,
-                    created_by="auto",
+            delivery_id = self.delivery.prepare_reply(
+                job_id=job_id or None,
+                business_message_id=email.message_id,
+                recipient=email.sender,
+                subject=email.subject,
+                body=reply,
+                in_reply_to=email.message_id,
+                created_by="auto",
+            )
+            delivery_result = await asyncio.to_thread(
+                self.delivery.send_prepared, delivery_id
+            )
+            if delivery_result.outcome == SmtpOutcome.SAFE_FAILURE:
+                raise RuntimeError(f"SMTP 自动回复尚未发送: {delivery_result.detail}")
+            if delivery_result.outcome == SmtpOutcome.UNCERTAIN:
+                self._save_decision_trace(
+                    email, "awaiting_confirmation", intent,
+                    local_knowledge_hits=len(hits),
+                    used_web_search=used_web_search, media_count=media_count,
+                    blocking_reasons=["smtp_uncertain"],
                 )
-                delivery_result = await asyncio.to_thread(
-                    self.delivery.send_prepared, delivery_id
-                )
-                if delivery_result.outcome == SmtpOutcome.SAFE_FAILURE:
-                    raise RuntimeError(f"SMTP 自动回复尚未发送: {delivery_result.detail}")
-                if delivery_result.outcome == SmtpOutcome.UNCERTAIN:
-                    self._save_decision_trace(
-                        email, "awaiting_confirmation", intent,
-                        local_knowledge_hits=len(hits),
-                        used_web_search=used_web_search, media_count=media_count,
-                        blocking_reasons=["smtp_uncertain"],
-                    )
-                    raise DeliveryUncertainError("SMTP 发送结果未知，等待人工确认")
-            else:
-                sent = await asyncio.to_thread(
-                    self.sender.send_reply,
-                    email.sender, email.subject, reply, email.message_id,
-                )
-                if not sent:
-                    raise RuntimeError("SMTP 自动回复失败")
+                raise DeliveryUncertainError("SMTP 发送结果未知，等待人工确认")
             self._save_decision_trace(
                 email, "auto_sent", intent, local_knowledge_hits=len(hits),
                 used_web_search=used_web_search, media_count=media_count,
@@ -655,10 +647,26 @@ class EmailAgent:
             product_conflicts,
         )
         if can_auto_send:
-            if not self.sender.send_reply(
-                email.sender, email.subject, reply, email.message_id
-            ):
-                raise RuntimeError("SMTP 自动回复失败")
+            delivery_id = self.delivery.prepare_reply(
+                job_id=None,
+                business_message_id=email.message_id,
+                recipient=email.sender,
+                subject=email.subject,
+                body=reply,
+                in_reply_to=email.message_id,
+                created_by="auto",
+            )
+            delivery_result = self.delivery.send_prepared(delivery_id)
+            if delivery_result.outcome == SmtpOutcome.SAFE_FAILURE:
+                raise RuntimeError(f"SMTP 自动回复尚未发送: {delivery_result.detail}")
+            if delivery_result.outcome == SmtpOutcome.UNCERTAIN:
+                self._save_decision_trace(
+                    email, "awaiting_confirmation", intent,
+                    local_knowledge_hits=len(hits),
+                    used_web_search=used_web_search, media_count=media_count,
+                    blocking_reasons=["smtp_uncertain"],
+                )
+                raise DeliveryUncertainError("SMTP 发送结果未知，等待人工确认")
             self._save_decision_trace(
                 email, "auto_sent", intent, local_knowledge_hits=len(hits),
                 used_web_search=used_web_search, media_count=media_count,

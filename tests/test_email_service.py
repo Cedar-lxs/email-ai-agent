@@ -1,4 +1,5 @@
 import asyncio
+import inspect
 import io
 import sys
 import tempfile
@@ -140,6 +141,9 @@ class KnowledgeServiceTests(unittest.TestCase):
 
 
 class AsyncEmailServiceTests(unittest.IsolatedAsyncioTestCase):
+    def test_email_agent_never_bypasses_delivery_service_for_smtp(self):
+        self.assertNotIn("self.sender.send_reply", inspect.getsource(EmailAgent))
+
     def test_mail_fetcher_connect_uses_configured_timeout(self):
         connection = Mock()
         with patch("email_agent.infrastructure.mail_fetcher.imaplib.IMAP4_SSL",

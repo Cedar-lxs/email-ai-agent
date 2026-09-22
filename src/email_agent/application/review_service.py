@@ -43,8 +43,13 @@ class ReviewService:
     def approve(self, message_id: str, actor: str = "cli"):
         row = self.require_draft(message_id)
         body = self.draft_body(row)
+        job = self.delivery.store.ensure_review_job(
+            message_id,
+            getattr(self.sender, "account", "") or "manual-review",
+            actor,
+        )
         delivery_id = self.delivery.prepare_reply(
-            job_id=None,
+            job_id=job["id"],
             business_message_id=message_id,
             recipient=row["sender"],
             subject=row["subject"],
@@ -54,6 +59,9 @@ class ReviewService:
         )
         result = self.delivery.send_prepared(delivery_id)
         if result.outcome == SmtpOutcome.SAFE_FAILURE:
+            self.delivery.store.restore_draft_after_safe_failure(
+                job["id"], actor, result.detail or "SMTP 尚未开始发送"
+            )
             self.db.record_error(message_id, "人工批准后 SMTP 发送失败", keep_status=True)
             raise RuntimeError("发送失败，草稿保持待审核状态，可稍后重试")
         if result.outcome == SmtpOutcome.UNCERTAIN:
